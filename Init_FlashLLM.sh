@@ -10,4 +10,4 @@
 # limitations under the License.
 
 # set up home path for FlashLLM
-export FlashLLM_HOME=$(pwd)
+export OUR_FlashLLM_HOME=$(pwd)

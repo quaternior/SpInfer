@@ -48,23 +48,30 @@ endif
 ################################################################################
 
 # Gencode arguments
-SMS ?= 80
+SMS ?= 89
 # Generate SASS code for each SM architecture listed in $(SMS)
 $(foreach sm,$(SMS),$(eval GENCODE_FLAGS += -gencode arch=compute_$(sm),code=sm_$(sm)))
 
-ALL_CCFLAGS += --threads 0 --std=c++11
+ALL_CCFLAGS += --threads 0 --std=c++14
 ALL_CCFLAGS += -maxrregcount=255 
 ALL_CCFLAGS += --use_fast_math
 ALL_CCFLAGS += --ptxas-options=-v,-warn-lmem-usage,--warn-on-spills
 ################################################################################
 # Target rules
-all: spmm_test
+all: spmm_test spmm_test_smtx
 
 spmm_test.o:  spmm_test.cu spmm_test_utils.h sparTA.h
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
 
 spmm_test: spmm_test.o 
-	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES) 
+	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
+
+spmm_test_smtx.o:  spmm_test_smtx.cu spmm_test_utils.h sparTA.h
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+
+spmm_test_smtx: spmm_test_smtx.o
+	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
+
 
 clean:
-	rm -f spmm_test spmm_test.o
+	rm -f spmm_test spmm_test.o spmm_test_smtx.o spmm_test_smtx

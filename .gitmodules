@@ -4,3 +4,4 @@
 [submodule "third_party/FasterTransformer"]
 	path = third_party/FasterTransformer
 	url = https://github.com/NVIDIA/FasterTransformer.git
+	branch = 9770d307b17b178f1ef31b157aabcf5c8b1fedb2

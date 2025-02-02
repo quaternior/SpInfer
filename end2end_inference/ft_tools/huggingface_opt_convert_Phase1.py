@@ -13,7 +13,14 @@
 # limitations under the License.
 
 # This file is extended by Flash-LLM Authors based on Faster-Transformer.
-
+'''
+python huggingface_opt_convert_Phase1.py \
+      -i /data2/share/OPT-series/opt-13b \
+      -o /data2/fanruibo/models/opt-13b/ft_format-model \
+      -i_g 2 \
+      -weight_data_type fp16 \
+      -p 64
+'''
 '''
 Convert huggingface Meta OPT model. Use https://huggingface.co/facebook/opt-125m as demo.
 '''
