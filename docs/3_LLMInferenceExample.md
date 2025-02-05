@@ -1,7 +1,7 @@
 # LLM Inference Example
 
 #### 1. Building Faster-Transformer with SpInfer integration
-Note: maybe cudnn should be installed/linked.
+Note: cudnn should be installed/linked.
 ```sh
 cd $SpInfer_HOME/third_party/FasterTransformer/
 mkdir -p build && cd build
@@ -9,12 +9,12 @@ mkdir -p build && cd build
 cmake -DSM=89 -DCMAKE_BUILD_TYPE=Release -DBUILD_MULTI_GPU=ON -DSpInfer=ON ..
 make -j
 ```
-Note: if you want run standard Faster-Transformer (cuBLAS will be used for all MatMuls), use the following cmake command instead:
+Note: if you want run standard **Faster-Transformer** (cuBLAS will be used for all MatMuls), use the following cmake command instead:
 ```sh
 cmake -DSM=89 -DCMAKE_BUILD_TYPE=Release -DBUILD_MULTI_GPU=ON -DFLASH_LLM=OFF ..
 make -j
 ```
-Note: if you want run Faster-Transformer with Flash-llm, use the following cmake command instead:
+Note: if you want run Faster-Transformer with **Flash-llm**, use the following cmake command instead:
 ```sh
 cmake -DSM=89 -DCMAKE_BUILD_TYPE=Release -DBUILD_MULTI_GPU=ON -DFLASH_LLM=ON ..
 make -j
@@ -40,7 +40,7 @@ python huggingface_opt_convert_Phase1.py \
       -p 64
 ```
 
-Converting from Faster-Transformer format to Flash-LLM format. Note that here **-i_g** means the number of GPUs you will use for inference. We fake 80% sparsity in this script for demonstration purpose, which can be disabled if you already have your OPT models pruned. Besides, hand-tuned SplitK is used for different input shapes.
+Converting from Faster-Transformer format to SpInfer format. Note that here **-i_g** means the number of GPUs you will use for inference. We fake 80% sparsity in this script for demonstration purpose, which can be disabled if you already have your OPT models pruned. Besides, hand-tuned SplitK is used for different input shapes.
 ```sh
 python huggingface_opt_convert_Phase2.py \
       -m $SpInfer_HOME/end2end_inference/models/opt-30b/c-model \
@@ -61,11 +61,4 @@ Note that **-n** here means the number of GPUs you use for inference, which shou
 ```sh
 cd $SpInfer_HOME/third_party/FasterTransformer/build
 mpirun -n 1 --allow-run-as-root ./bin/multi_gpu_gpt_example
-```
-
-#### 5. DeepSpeed baseline
-```sh
-cd $SpInfer_HOME/end2end_inference/ds_scripts
-pip install -r requirements.txt
-deepspeed --num_gpus 1 inference-test.py --ds_inference --greedy --use_meta_tensor --use_kernel --name facebook/opt-30b --batch_size 8 --max_new_tokens 512 --max_tokens 576
 ```

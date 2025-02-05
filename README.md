@@ -1,63 +1,55 @@
-# Flash-LLM
-Flash-LLM is a large language model (LLM) inference acceleration library for unstructured model pruning. Flash-LLM mainly contains efficient GPU code based on Tensor-Core-accelerated unstructured sparse matrix multiplication calculations, which can effectively accelerate the performance of common matrix calculations in LLM. With Flash-LLM, the pruned LLM models can be deployed onto GPUs with less memory consumption and can be executed more efficiently. Currently, the code has been evaluated on NVIDIA A100 GPUs.
+# SpInfer Artifact for EuroSys'25.
 
-We observe that LLM inference performance and memory usage are heavily bounded by four types of **Skinny MatMuls** shown in the left figure. 
-Flash-LLM aims to optimize the four MatMuls based on the key approach called **"Load-as-Sparse and Compute-as-Dense" (LSCD)**.
+## 1. Clone this project.
+```
+git clone https://github.com/xxyux/SpInfer.git
+cd SpInfer
+git submodule update --init --recursive
+source Init_SpInfer.sh
+cd $SpInfer_HOME/third_party/FasterTransformer && git apply ../ft_spinfer.patch
+```
 
-<p align="center">
-  <picture>
-  <img src="docs/assets/MatMulsInLLMs.png" width="40%">
-  </picture>
-  <picture>
-  <img src="docs/assets/ExistingSpMM.png" width="45%">
-  </picture>
-</p>
++ **Requirements**: 
+> + `Ubuntu 16.04+`
+> + `gcc >= 7.3`
+> + `cmake >= 3.30.3`
+> + `CUDA >= 12.2` and `nvcc >= 12.0`
+> + NVIDIA GPU with `sm >= 80` (i.e., Ampere, like A6000. Ada, like RTX4090).
 
-## Getting Started
-Visit the [documentation](docs) to get started.
-* [Preparations](docs/1_Preparations.md)
-* [Kernel Benchmarking](docs/2_KernelBenchmarking.md)
-* [LLM Inference Example](docs/3_LLMInferenceExample.md)
+## 2. Environment Setup.(Install via Conda)
++ 2.1 Install **`conda`** on system **[Toturial](https://docs.anaconda.com/miniconda/)**.
++ 2.2 Create a **`conda`** environment: 
+```
+cd $SpInfer_HOME
+conda env create -f spinfer.yml
+conda activate spinfer
+```
 
-## Performance
-Flash-LLM shows superior performance in both single SpMM kernel and end-to-end LLM inference.
-The figure below shows the kernel-level performance comparisons among Flash-LLM and state-of-the-art solutions.
-Flash-LLM outperforms Sputnik/SparTA by **3.6x**/**1.4x**, **3.0x**/**1.4x**, and **2.0x**/**1.6x** under 70%, 80%, and 90% sparsity respectively. 
-Besides, Flash-LLM can also outperform the state-of-the-art dense kernels cuBLAS with Tensor Core enabled by **1.4x**, **1.7x**, and **2.1x**.
+## 3. Install **`SpInfer`**.
+The libSpMM_API.so and SpMM_API.cuh will be available for easy integration after:
+```
+cd $SpInfer_HOME/build && make -j
+``` 
 
-![KernelBenchmarking](docs/assets/KernelBenchmarking.png)
+## 4. Runing **SpInfer** in kernel benchmark.
+TODO:
 
-The figure below on the **left** shows the performance of Flash-LLM, FasterTransformer, and DeepSpeed respectively on the **OPT-66B** models. 
-First of all, Flash-LLM can support larger batch sizes because it requires less storage resources; secondly, Flash-LLM has significantly higher token generation efficiency than FasterTransformer and DeepSpeed; finally, Flash-LLM often requires fewer GPUs to execute the same LLM model.
+## 5. Running End-to-end model.
+#### 5.1 Building
+Follow the steps in **[SpInfer/docs/3_LLMInferenceExample](https://github.com/xxyux/SpInfer/blob/main/docs/3_LLMInferenceExample.md#llm-inference-example)**
++ Building Faster-Transformer with (SpInfer, Flash-llm or Standard) integration
++ Downloading & Converting OPT models
++ Configuration
+Note: Model_dir is different for SpInfer, Flash-llm and Faster-Transformer.
+#### 5.2 Running Inference (SpInfer, Flash-llm && Faster-Transformer)
+> + `cd $SpInfer_HOME/SpInfer/third_party/`
+> + `bash run_1gpu_loop.sh`
+> + Check the results in `$SpInfer_HOME/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64/`
+> + Test tensor_para_size=2 using `bash run_2gpu_loop.sh`
 
-The figure below on the **right** presents the performance of Flash-LLM and FasterTransformer respectively on the **OPT-175B** models and the memory breakdown for the inference.
-On the one hand, Flash-LLM's matrix calculation is more efficient; on the other hand, its communication cost is lower because it requires fewer GPUs.
-
-<p align="center">
-  <picture>
-  <img src="docs/assets/Inference_OPT_66B.png" width="45%">
-  </picture>
-  <picture>
-  <img src="docs/assets/Inference_OPT_175B.png" width="50%">
-  </picture>
-</p>
-
-## Publication
-Flash-LLM is a collaborated research project between Alibaba Group and [FSA-Lab@USYD](https://www.fsa-lab.org/), which is recently accepted by VLDB 2024:
-
-Haojun Xia*, University of Sydney; Zhen Zheng*, Yuchao Li, Alibaba Group; Donglin Zhuang, Zhongzhu Zhou, University of Sydney; Xiafei Qiu, Yong Li, Wei Lin, Alibaba Group; Shuaiwen Leon Song, University of Sydney. *Flash-LLM: Enabling Cost-Effective and Highly-Efficient Large Generative Model Inference with Unstructured Sparsity. VLDB2024.*
-
-You can find the pre-print online using this [link](https://arxiv.org/abs/2309.10285).
-
-## Citation
-If you use this codebase or otherwise found our work valuable, please cite:
-```bibtex
-@misc{xia2023flashllm,
-      title={Flash-LLM: Enabling Cost-Effective and Highly-Efficient Large Generative Model Inference with Unstructured Sparsity}, 
-      author={Haojun Xia and Zhen Zheng and Yuchao Li and Donglin Zhuang and Zhongzhu Zhou and Xiafei Qiu and Yong Li and Wei Lin and Shuaiwen Leon Song},
-      year={2023},
-      eprint={2309.10285},
-      archivePrefix={arXiv},
-      primaryClass={cs.DC}
-}
+#### 5.3 Runing DeepSpeed baseline
+```sh
+cd $SpInfer_HOME/end2end_inference/ds_scripts
+pip install -r requirements.txt
+deepspeed --num_gpus 1 inference-test.py --ds_inference --greedy --use_meta_tensor --use_kernel --name facebook/opt-30b --batch_size 8 --max_new_tokens 512 --max_tokens 576
 ```
