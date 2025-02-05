@@ -8,7 +8,7 @@ index 76a5e06..138208d 100644
  
 +option(FLASH_LLM "Build project with FlashLLM feature support" OFF)
 +
-+option(OUR_FLASH_LLM "Build project with Our FlashLLM feature support" OFF)
++option(SpInfer "Build project with Our FlashLLM feature support" OFF)
 +
  option(SPARSITY_SUPPORT "Build project with Ampere sparsity feature support" OFF)
  
@@ -46,8 +46,8 @@ index 76a5e06..138208d 100644
 +#add_definitions(-DPRINT_MISSING_INPUT_FILES=1)
 +#######################################################
 +
-+if (OUR_FLASH_LLM)
-+  message("-- OUR_FLASH_LLM is ${OUR_FLASH_LLM}!")
++if (SpInfer)
++  message("-- SpInfer is ${SpInfer}!")
 +  message("-- SpInfer_HOME is $ENV{SpInfer_HOME}!")
 +  add_definitions(-DSPARSITY_LLM=1)
 +  # add_definitions(-DSPARSITY_DEBUG=1)
@@ -3567,8 +3567,8 @@ index 9e84306..d924b10 100644
 +    target_link_libraries(cublasMMWrapper PUBLIC -lcublas -lcudart -lcurand cublasAlgoMap -lSpMM_API)
 +#
 +# Sparse_LLM
-+elseif (OUR_FLASH_LLM)
-+    message("-- in utiles, OUR_FLASH_LLM is ${OUR_FLASH_LLM}!")
++elseif (SpInfer)
++    message("-- in utiles, SpInfer is ${SpInfer}!")
 +    target_link_libraries(cublasMMWrapper PUBLIC -lcublas -lcudart -lcurand cublasAlgoMap -lSpMM_API)
 +#
  else()

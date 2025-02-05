@@ -6,7 +6,7 @@ Note: maybe cudnn should be installed/linked.
 cd $SpInfer_HOME/third_party/FasterTransformer/
 mkdir -p build && cd build
 
-cmake -DSM=89 -DCMAKE_BUILD_TYPE=Release -DBUILD_MULTI_GPU=ON -DOUR_FLASH_LLM=ON ..
+cmake -DSM=89 -DCMAKE_BUILD_TYPE=Release -DBUILD_MULTI_GPU=ON -DSpInfer=ON ..
 make -j
 ```
 Note: if you want run standard Faster-Transformer (cuBLAS will be used for all MatMuls), use the following cmake command instead:
