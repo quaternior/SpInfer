@@ -26,7 +26,7 @@ REMOVE_ORGINAL_DENSE_WEIGHTS = False
 ###################################################################
 # python huggingface_opt_convert_Phase2.py \
 #       -m /data2/fanruibo/models/opt-13b/ft-model-60 \
-#       -l $OUR_FlashLLM_HOME/build/libSpMM_API.so \
+#       -l $SpInfer_HOME/build/libSpMM_API.so \
 #       -i_g 1 \
 #       -p 64
 import ctypes
