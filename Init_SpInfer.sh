@@ -10,4 +10,4 @@
 # limitations under the License.
 
 # set up home path for FlashLLM
-export OUR_FlashLLM_HOME=$(pwd)
+export SpInfer_HOME=$(pwd)

@@ -48,11 +48,11 @@ index 76a5e06..138208d 100644
 +
 +if (OUR_FLASH_LLM)
 +  message("-- OUR_FLASH_LLM is ${OUR_FLASH_LLM}!")
-+  message("-- OUR_FlashLLM_HOME is $ENV{OUR_FlashLLM_HOME}!")
++  message("-- SpInfer_HOME is $ENV{SpInfer_HOME}!")
 +  add_definitions(-DSPARSITY_LLM=1)
 +  # add_definitions(-DSPARSITY_DEBUG=1)
-+  include_directories($ENV{OUR_FlashLLM_HOME}/build)
-+  link_directories($ENV{OUR_FlashLLM_HOME}/build)
++  include_directories($ENV{SpInfer_HOME}/build)
++  link_directories($ENV{SpInfer_HOME}/build)
 +endif()
 +
 +

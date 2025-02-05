@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # Define the configuration file path
-CONFIG_FILE="${OUR_FlashLLM_HOME}/third_party/FasterTransformer/examples/cpp/multi_gpu_gpt/gpt_config.ini"
+CONFIG_FILE="${SpInfer_HOME}/third_party/FasterTransformer/examples/cpp/multi_gpu_gpt/gpt_config.ini"
 
 # Define the output directory path
-OUTPUT_DIR="${OUR_FlashLLM_HOME}/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64"
+OUTPUT_DIR="${SpInfer_HOME}/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64"
 
 # Create the output directory if it does not exist
 mkdir -p "$OUTPUT_DIR"
 
-cd ${OUR_FlashLLM_HOME}/third_party/FasterTransformer/build
+cd ${SpInfer_HOME}/third_party/FasterTransformer/build
 # Define the batch size and output length ranges
 # BATCH_SIZES=(8 16 32 64)
 # OUTPUT_LENS=(64 128 256 512 1024)
