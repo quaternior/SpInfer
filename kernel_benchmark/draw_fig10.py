@@ -5,14 +5,14 @@ import numpy as np
 
 # 定义文件路径
 files_4090 = [
-    "sputnik_performance_results_all.csv", 
-    "cusparse_performance_results.csv", 
-    "spmm_performance_results_main_v2.csv",
-    "sparta_performance_results_main_v1.csv"
+    "sputnik_performance_results_all_done.csv", 
+    "cusparse_performance_results_done.csv", 
+    "spmm_performance_results_main_done.csv",
+    "sparta_performance_results_main_done.csv"
 ]
 
 # 定义方法的名称及对应的颜色
-methods = ['cuSPARSE_R_TFLOPS', 'Sputnik', 'SparTA', 'Flash-LLM', 'SpInfer-SpMMV3']
+methods = ['cuSPARSE', 'Sputnik', 'SparTA', 'Flash-LLM', 'SpInfer-SpMMV3']
 colors = ['#000', '#C00000', '#800080','#0000FF','#4d8076']
 
 def process_data(files):
