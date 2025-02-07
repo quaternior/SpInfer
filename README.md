@@ -42,20 +42,20 @@ Follow the steps in **[SpInfer/docs/3_LLMInferenceExample](https://github.com/xx
 + Configuration
 Note: Model_dir is different for SpInfer, Flash-llm and Faster-Transformer.
 #### 5.2 Running **SpInfer** Inference
-> + `cd $SpInfer_HOME/SpInfer/third_party/`
+> + `cd $SpInfer_HOME/third_party/`
 > + `bash run_1gpu_loop.sh`
 > + Check the results in `$SpInfer_HOME/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64/`
 > + Test tensor_para_size=2 using `bash run_2gpu_loop.sh`
 > + Test tensor_para_size=4 using `bash run_4gpu_loop.sh`
 #### 5.3 Running **Flash-llm** Inference
-> + `cd $FlashLLM_HOME/SpInfer/third_party/`
+> + `cd $FlashLLM_HOME/third_party/`
 > + `bash run_1gpu_loop.sh`
 > + Check the results in `$FlashLLM_HOME/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64/`
 > + Test tensor_para_size=1 using `bash run_1gpu_loop.sh`
 #### 5.4 Running **Faster-transformer** Inference
-> + `cd $FT_HOME/SpInfer/third_party/`
+> + `cd $FT_HOME/third_party/`
 > + `bash run_2gpu_loop.sh`
-> + Check the results in `$FT_HOME/third_party/FasterTransformer/OutputFile_2gpu_our_60_inlen64/`
+> + Check the results in `$FT_HOME/FasterTransformer/OutputFile_2gpu_our_60_inlen64/`
 #### 5.5 Runing **DeepSpeed** Inference
 > + `cd $SpInfer_HOME/end2end_inference/ds_scripts`
 > + `pip install -r requirements.txt`
