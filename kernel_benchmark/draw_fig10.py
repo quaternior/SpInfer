@@ -7,8 +7,8 @@ import numpy as np
 files_4090 = [
     "sputnik_performance_results_all_done.csv", 
     "cusparse_performance_results_done.csv", 
-    "spmm_performance_results_main_done.csv",
-    "sparta_performance_results_main_v2_done.csv"
+    "spmm_performance_results_main_v2_done.csv",
+    "sparta_performance_results_main_done.csv"
 ]
 
 # 定义方法的名称及对应的颜色
