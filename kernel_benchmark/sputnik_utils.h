@@ -535,7 +535,7 @@ SparseMatrix::SparseMatrix(int rows, int columns, float* originals, Swizzle row_
     for (int64_t i = 0; i < rows; ++i) {
         for (int64_t j = 0; j < columns; ++j) {
             int64_t idx = i * columns + j;
-            if (abs(originals[idx]) <= zeroThreshold) {
+            if (abs(originals[idx]) > zeroThreshold) {
                 nonzeros_++;
             }
         }
