@@ -1,3 +1,6 @@
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/include:$CPLUS_INCLUDE_PATHexport CPLUS_INCLUDE_PATH=$CONDA_PREFIX/include:$CPLUS_INCLUDE_PATH
+
 cd ${SpInfer_HOME}/third_party/glog  && mkdir build && cd build
 cmake -DCMAKE_INSTALL_PREFIX=${SpInfer_HOME}/third_party/glog/build ..
 make -j
