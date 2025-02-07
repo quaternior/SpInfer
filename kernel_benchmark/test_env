@@ -10,8 +10,8 @@
 # limitations under the License.
 
 # Please enter your sputnik path:
-MySputnikPath="${FlashLLM_HOME}/third_party/sputnik"
-MySpMMPath="${FlashLLM_HOME}"
+MySputnikPath="${SpInfer_HOME}/third_party/sputnik"
+MySpMMPath="${SpInfer_HOME}"
 MyUSEcuSPARSELT="yes"   # Used by sparTA
 
 #setting up Sputnik environment
