@@ -58,7 +58,7 @@ ALL_CCFLAGS += --use_fast_math
 ALL_CCFLAGS += --ptxas-options=-v,-warn-lmem-usage,--warn-on-spills
 ################################################################################
 # Target rules
-all: spmm_test spmm_test_sparta spmm_test_sputnik
+all: spmm_test spmm_test_sparta spmm_test_sputnik spmm_test_cusparse
 
 spmm_test.o:  spmm_test.cu spmm_test_utils.h sparTA.h
 	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
@@ -78,5 +78,10 @@ spmm_test_sputnik.o:  spmm_test_sputnik.cu spmm_test_utils.h sparTA.h
 spmm_test_sputnik: spmm_test_sputnik.o
 	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
 
+spmm_test_cusparse.o:  spmm_test_cusparse.cu spmm_test_utils.h sparTA.h
+	$(EXEC) $(NVCC) $(INCLUDES) $(ALL_CCFLAGS) $(GENCODE_FLAGS) -o $@ -c $<
+
+spmm_test_cusparse: spmm_test_cusparse.o
+	$(EXEC) $(NVCC) $(ALL_LDFLAGS) $(GENCODE_FLAGS) -o $@ $+ $(LIBRARIES)
 clean:
-	rm -f spmm_test spmm_test.o spmm_test_sparta.o spmm_test_sparta spmm_test_sputnik.o spmm_test_sputnik
+	rm -f spmm_test spmm_test.o spmm_test_sparta.o spmm_test_sparta spmm_test_sputnik.o spmm_test_sputnik spmm_test_cusparse.o spmm_test_cusparse
