@@ -65,16 +65,23 @@ Follow the steps in **[SpInfer/docs/3_LLMInferenceExample](https://github.com/xx
 + Downloading & Converting OPT models
 + Configuration
 Note: Model_dir is different for SpInfer, Flash-llm and Faster-Transformer.
-#### 5.2 Running Inference (SpInfer, Flash-llm && Faster-Transformer)
-> + `cd $SpInfer_HOME/SpInfer/third_party/`
+#### 5.2 Running **SpInfer** Inference
+> + `cd $SpInfer_HOME/third_party/`
 > + `bash run_1gpu_loop.sh`
 > + Check the results in `$SpInfer_HOME/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64/`
 > + Test tensor_para_size=2 using `bash run_2gpu_loop.sh`
-
-#### 5.3 Runing DeepSpeed baseline
-```sh
-cd $SpInfer_HOME/end2end_inference/ds_scripts
-pip install -r requirements.txt
-deepspeed --num_gpus 1 inference-test.py --ds_inference --greedy --use_meta_tensor --use_kernel --name facebook/opt-30b --batch_size 8 --max_new_tokens 512 --max_tokens 576
-```
-
+> + Test tensor_para_size=4 using `bash run_4gpu_loop.sh`
+#### 5.3 Running **Flash-llm** Inference
+> + `cd $FlashLLM_HOME/third_party/`
+> + `bash run_1gpu_loop.sh`
+> + Check the results in `$FlashLLM_HOME/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64/`
+> + Test tensor_para_size=1 using `bash run_1gpu_loop.sh`
+#### 5.4 Running **Faster-transformer** Inference
+> + `cd $FT_HOME/third_party/`
+> + `bash run_2gpu_loop.sh`
+> + Check the results in `$FT_HOME/FasterTransformer/OutputFile_2gpu_our_60_inlen64/`
+#### 5.5 Runing **DeepSpeed** Inference
+> + `cd $SpInfer_HOME/end2end_inference/ds_scripts`
+> + `pip install -r requirements.txt`
+> + `bash run_ds_loop.sh`
+> + Check the results in `$SpInfer_HOME/end2end_inference/ds_scripts/ds_result/`
