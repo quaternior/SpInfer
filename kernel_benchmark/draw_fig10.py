@@ -112,7 +112,7 @@ fig.legend(handles, methods, loc='upper center', ncol=len(methods),
 plt.tight_layout()
 
 # 保存图片到文件
-plt.savefig('output_boxplot_1x3_updated.png', dpi=300, bbox_inches='tight')
+plt.savefig('Figure10.png', dpi=300, bbox_inches='tight')
 
 # 关闭当前的图形对象
 plt.close()
