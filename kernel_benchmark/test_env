@@ -42,8 +42,15 @@ then
   echo "cuSPARSELT will not be used."
 else
   echo "Setting up My cuSPARSELT environment..."
+  export CPLUS_INCLUDE_PATH=${SpInfer_HOME}/third_party/cusparselt/include:$CPLUS_INCLUDE_PATH
+  export LIBRARY_PATH=${SpInfer_HOME}/third_party/cusparselt/lib:$LIBRARY_PATH
+  export LD_LIBRARY_PATH=${SpInfer_HOME}/third_party/cusparselt/lib:$LD_LIBRARY_PATH
   export USE_CUSPARSELT=$MyUSEcuSPARSELT
 fi
+
+
+export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/include:$CPLUS_INCLUDE_PATH
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
 echo "Done!"
 
