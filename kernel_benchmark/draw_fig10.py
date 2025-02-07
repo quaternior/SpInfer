@@ -12,7 +12,7 @@ files_4090 = [
 ]
 
 # 定义方法的名称及对应的颜色
-methods = ['cuSPARSE', 'Sputnik', 'SparTA', 'Flash-LLM', 'SpInfer']
+methods = ['cuSPARSE', 'Sputnik', 'SparTA', 'Flash-LLM', 'SpInfer-SpMMV3']
 colors = ['#000', '#C00000', '#800080','#0000FF','#4d8076']
 
 def process_data(files):
