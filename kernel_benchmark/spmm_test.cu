@@ -802,6 +802,14 @@ int main(int argc, char** argv)
         printf("Error in cudaMalloc\n");
         exit(-1);
     }
+    // 创建GPU端的max_nnz_intilev3
+    int* max_nnz_intilev3_gpu = nullptr;
+    cudaMalloc(&max_nnz_intilev3_gpu, sizeof(int));
+    if (max_nnz_intilev3_gpu == NULL) {
+        printf("Error in cudaMalloc for max_nnz_intilev3_gpu\n");
+        exit(-1);
+    }
+    cudaMemcpy(max_nnz_intilev3_gpu, &max_nnz_intilev3, sizeof(int), cudaMemcpyHostToDevice);
     
     for (int i = 0; i < WARM_UP_ITERATION; i++)
         SpMM_SplitK_API_bitmap_v3(0,
@@ -810,7 +818,7 @@ int main(int argc, char** argv)
                         bitmap_TileOffsets_global_gpu_v3, // int
                         bitmap_TileOffsets_median_gpu_v3, // int
                         bitmap_gpu_v3, //uint64
-                        max_nnz_intilev3, // int
+                        max_nnz_intilev3_gpu, // int
                         B,
                         D_SpMM_bitmapv3,
                         M_GLOBAL,
@@ -826,7 +834,7 @@ int main(int argc, char** argv)
                         bitmap_TileOffsets_global_gpu_v3,
                         bitmap_TileOffsets_median_gpu_v3,
                         bitmap_gpu_v3,
-                        max_nnz_intilev3,
+                        max_nnz_intilev3_gpu,
                         B,
                         D_SpMM_bitmapv3,
                         M_GLOBAL,
@@ -854,6 +862,7 @@ int main(int argc, char** argv)
     cudaFree(bitmap_gpu_v3);
     cudaFree(Compressed_Val_gpu_v3);
     cudaFree(Reduction_Workspace_bitmapv3);
+    cudaFree(max_nnz_intilev3_gpu);
     /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
