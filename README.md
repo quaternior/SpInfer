@@ -44,7 +44,7 @@ Note: Model_dir is different for SpInfer, Flash-llm and Faster-Transformer.
 #### 5.2 Running Inference (SpInfer, Flash-llm && Faster-Transformer)
 > + `cd $SpInfer_HOME/SpInfer/third_party/`
 > + `bash run_1gpu_loop.sh`
-> + Check the results in `$SpInfer_HOME/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64/`
+> + Check the results (Fig.13/14) in `$SpInfer_HOME/third_party/FasterTransformer/OutputFile_1gpu_our_60_inlen64/`
 > + Test tensor_para_size=2 using `bash run_2gpu_loop.sh`
 
 #### 5.3 Runing DeepSpeed baseline

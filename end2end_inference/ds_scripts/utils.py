@@ -40,7 +40,7 @@ class DSPipeline():
         # the Deepspeed team made these so it's super fast to load (~1 minute), rather than wait 10-20min loading time.
         self.tp_presharded_models = ["microsoft/bloom-deepspeed-inference-int8", "microsoft/bloom-deepspeed-inference-fp16"]
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left", use_fast=False)
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
         if (is_meta):
@@ -105,6 +105,9 @@ class DSPipeline():
         generate_kwargs = dict(max_new_tokens=num_tokens, do_sample=do_sample)       # Setting min_length = nex_new_tokens = num_tokens
 
         input_tokens = self.tokenizer.batch_encode_plus(inputs, return_tensors="pt", padding=True)
+        max_length = 64
+        input_tokens['input_ids'] = torch.nn.functional.pad(input_tokens['input_ids'], (0, max_length - input_tokens['input_ids'].size(1)), value=0)[:,:max_length]
+        input_tokens['attention_mask'] = torch.nn.functional.pad(input_tokens['attention_mask'], (0, max_length - input_tokens['attention_mask'].size(1)), value=0)[:,:max_length]
         for t in input_tokens:
             if torch.is_tensor(input_tokens[t]):
                 input_tokens[t] = input_tokens[t].to(self.device)
