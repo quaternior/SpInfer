@@ -78,12 +78,12 @@ process_test_case() {
     echo "$kernel_lines" >> "$debug_log"
 
     while read -r line; do
-        # 提取 `Avg (ns)`（第 4 列）和 `Name`（最后一列）
-        duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')
-        kernel_name=$(echo "$line" | awk '{print $NF}')
+        # 提取 `Avg (ns)` 和 `Name`
+        duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',' | sed 's/[[:space:]]//g')
+        kernel_name=$(echo "$line" | awk '{$1=$2=$3=$4=$5=$6=$7=$8=$9=$10=$11=""; print $0}' | sed 's/^[ \t]*//')
 
-        # 过滤掉无效的 `kernel_name`
-        if [[ "$kernel_name" == "void" || "$kernel_name" == "int)" || "$kernel_name" == "(" || "$kernel_name" == "int" ]]; then
+        # 过滤掉无效 `kernel_name`
+        if [[ -z "$kernel_name" || "$kernel_name" =~ ^[0-9]+$ || "$kernel_name" =~ ^[[:punct:]]+$ ]]; then
             echo "Error: Skipping invalid kernel name: $kernel_name" >> "$debug_log"
             continue
         fi
@@ -114,19 +114,6 @@ process_test_case() {
     if [[ ${#accumulated_times[@]} -eq 0 ]]; then
         echo "Error: No valid kernel times found, skipping CSV output" >> "$debug_log"
         return
-    fi
-
-    # 计算 SplitK 平均时间并加到对应的计算内核
-    if [[ $splitkreduce_kernel_count -gt 0 ]]; then
-        avg_splitkreduce_kernel_time=$(awk "BEGIN {print $splitkreduce_kernel_time / $splitkreduce_kernel_count}")
-        accumulated_times[cuBLAS_TC]=$(awk "BEGIN {print ${accumulated_times[cuBLAS_TC]:-0} + $avg_splitkreduce_kernel_time}")
-    fi
-
-    if [[ $splitk_reduction_count -gt 0 ]]; then
-        avg_splitk_reduction_time=$(awk "BEGIN {print $splitk_reduction_time / $splitk_reduction_count}")
-        for key in "SpInfer-SpMMV1" "SpInfer-SpMMV2" "SpInfer-SpMMV3" "Flash-LLM"; do
-            accumulated_times[$key]=$(awk "BEGIN {print ${accumulated_times[$key]:-0} + $avg_splitk_reduction_time}")
-        done
     fi
 
     # 输出结果到 CSV
