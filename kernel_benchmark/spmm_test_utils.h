@@ -25,7 +25,7 @@
 
 // Performance Benchmark
 #define WARM_UP_ITERATION 0
-#define BENCHMARK_ITERATION 1
+#define BENCHMARK_ITERATION 1000
 #ifdef USE_CUSPARSE
 #define CUSPARSE_ITERATION 10
 #endif
@@ -602,7 +602,7 @@ __host__ int InitSparseMatrixA_bitmap(half* A_h,
 
                     if (row < M && col < K) {
                         half val = A_h[row * K + col];
-                        if (val != __float2half(0.0f)) { // 如果非零
+                        if (__half2float(val) != 0.0f) { // 如果非零
                             tile_bitmap |= (1ULL << (row_offset*4 + (col_offset / 2))); // 设置 bitmap 对应位
                             (*Compressed_Val)[val_count++] = val; // 存储非零值
                         }
@@ -618,7 +618,7 @@ __host__ int InitSparseMatrixA_bitmap(half* A_h,
 
                     if (row < M && col < K) {
                         half val = A_h[row * K + col];
-                        if (val != __float2half(0.0f)) { // 如果非零
+                        if (__half2float(val) != 0.0f) { // 如果非零
                             tile_bitmap |= (1ULL << (32 + row_offset*4 + (col_offset / 2))); // 设置 bitmap 对应位
                             (*Compressed_Val)[val_count++] = val; // 存储非零值
                         }
@@ -703,7 +703,7 @@ __host__ int InitSparseMatrixA_bitmap_v2(
 
                             if (row < M && col < K) {
                                 half val = A_h[row * K + col];
-                                if (val != __float2half(0.0f)) {
+                                if (__half2float(val) != 0.0f) {
                                     tile_bitmap |= (1ULL << (row_offset * 4 + (col_offset / 2)));
                                     (*Compressed_Val)[val_count++] = val;
                                     local_val_count++;
@@ -721,7 +721,7 @@ __host__ int InitSparseMatrixA_bitmap_v2(
 
                             if (row < M && col < K) {
                                 half val = A_h[row * K + col];
-                                if (val != __float2half(0.0f)) {
+                                if (__half2float(val) != 0.0f) {
                                     tile_bitmap |= (1ULL << (32 + row_offset * 4 + (col_offset / 2)));
                                     (*Compressed_Val)[val_count++] = val;
                                     local_val_count++;
@@ -825,7 +825,7 @@ __host__ int InitSparseMatrixA_bitmap_v3(
 
                             if (row < M && col < K) {
                                 half val = A_h[row * K + col];
-                                if (val != __float2half(0.0f)) {
+                                if (__half2float(val) != 0.0f) {
                                     tile_bitmap |= (1ULL << (row_offset * tile_K + col_offset));
                                     (*Compressed_Val)[val_count++] = val;
                                     local_val_count++;
@@ -941,7 +941,7 @@ int InitSparseMatrixA_bitmap_v4(
 
                                         if (row < M && col < K) {
                                             half val = A_h[row * K + col];
-                                            if (val != __float2half(0.0f)) {
+                                            if (__half2float(val) != 0.0f) {
                                                 tile_bitmap |= (1ULL << (row_offset * tile_K + col_offset));
                                                 (*Compressed_Val)[val_count++] = val;
                                                 local_val_count++;
@@ -1063,7 +1063,7 @@ int InitSparseMatrixA_bitmap_v5(
 
                                         if (row < M && col < K) {
                                             half val = A_h[row * K + col];
-                                            if (val != __float2half(0.0f)) {
+                                            if (__half2float(val) != 0.0f) {
                                                 tile_bitmap |= (1ULL << (row_offset * tile_K + col_offset));
                                                 (*Compressed_Val)[val_count++] = val;
                                                 local_val_count++;
@@ -1201,7 +1201,7 @@ int InitSparseMatrixA_bitmap_v6(
 
                                             if (row < M && col < K) {
                                                 half val = A_h[row * K + col];
-                                                if (val != __float2half(0.0f)) {
+                                                if (__half2float(val) != 0.0f) {
                                                     tile_bitmap |= (1ULL << (row_offset * tile_K + col_offset));
                                                     (*Compressed_Val)[val_count++] = val;
                                                     local_val_count++;
@@ -1342,7 +1342,7 @@ int InitSparseMatrixA_bitmap_v6(
 
 //                                             if (row < M && col < K) {
 //                                                 half val = A_h[row * K + col];
-//                                                 if (val != __float2half(0.0f)) {
+//                                                 if (__half2float(val) != 0.0f) {
 //                                                     tile_bitmap |= (1ULL << (row_offset * tile_K + col_offset));
 //                                                     (*Compressed_Val)[val_count++] = val;
 //                                                     local_val_count++;
