@@ -106,6 +106,9 @@ process_test_case() {
     # 输出结果到 CSV
     echo "$m,$k,$n,$sk,$s,${sparTA_total_time},${tflops}" >> "$output_csv"
     echo "Debug: Output to CSV - SparTA_Total_Time: $sparTA_total_time ns, TFLOPS: $tflops" >> "$debug_log"
+    echo "Debug: Removing report files..." >> "$debug_log"
+    rm -f report*
+    echo "Debug: Report files removed." >> "$debug_log"
 }
 # 确保 M 和 K 数组长度相同
 if [ ${#M[@]} -ne ${#K[@]} ]; then
