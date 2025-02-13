@@ -99,6 +99,7 @@ for ((i=0; i<${#M[@]}; i++)); do
     for n in "${N[@]}"; do
         for s in "${SPARSITY[@]}"; do
             for sk in "${SPLIT_K[@]}"; do
+                echo "Running sputnik test case: M=$m, K=$k, N=$n, S=$s, SK=$sk"
                 process_test_case $m $k $n $s $sk
             done
         done

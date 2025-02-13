@@ -31,7 +31,7 @@ process_kernel_name() {
 }
 
 # 设置输出文件
-output_csv="spmm_performance_results_main_nsys.csv"
+output_csv="spmm_performance_results_main_v2_done.csv"
 debug_log="debug_main_nsys.log"
 
 # 创建或清空输出文件
@@ -183,7 +183,7 @@ for ((i=0; i<${#M[@]}; i++)); do
     sk=${SPLIT_K[i]}
     for n in "${N[@]}"; do
         for s in "${SPARSITY[@]}"; do
-            echo "Running test case: M=$m, K=$k, N=$n, S=$s, SK=$sk"
+            echo "Running spinfer and cublas test case: M=$m, K=$k, N=$n, S=$s, SK=$sk"
             process_test_case $m $k $n $s $sk
         done
     done
