@@ -80,7 +80,23 @@ process_test_case() {
     while read -r line; do
         # 提取 `Avg (ns)` 和 `Name`
         duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',' | sed 's/[[:space:]]//g')
-        kernel_name=$(echo "$line" | awk '{$1=$2=$3=$4=$5=$6=$7=$8=$9=$10=$11=""; print $0}' | sed 's/^[ \t]*//')
+        # kernel_name=$(echo "$line" | awk '{$1=$2=$3=$4=$5=$6=$7=$8=$9=$10=$11=""; print $0}' | sed 's/^[ \t]*//')
+        kernel_name=$(echo "$line" | awk '
+        {
+            for(i=1;i<=NF;i++) {
+                # 匹配所有可能的kernel类型
+                if($i ~ /SpMM_Kernel|SplitK_Reduction|ampere_|void|cutlass|s1688gemm|s161616gemm|s16816gemm|sgemm/) {
+                    # 处理前缀
+                    gsub(/^void /, "", $i);
+                    # 处理模板参数
+                    split($i, a, "<");
+                    # 处理可能的括号
+                    split(a[1], b, "(");
+                    print b[1];
+                    exit
+                }
+            }
+        }')
         # kernel_name=$(echo "$line" | awk '{for(i=1;i<=NF;i++) if($i ~ /SplitK_Reduction|SpMM_Kernel|ampere_|void/) {print $i; exit}}' | cut -d'(' -f1)
         echo "$kernel_name" >> "$debug_log"
         # 过滤掉无效 `kernel_name`
