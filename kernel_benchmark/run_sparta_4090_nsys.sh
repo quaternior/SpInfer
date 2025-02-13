@@ -1,4 +1,6 @@
 #!/bin/bash
+
+# 定义测试参数
 M=(8192 4096 32000 3584 32000 1024 28672 5120 5120 3584 3584 4096 13824 8192 18944 14336 4096 8192 11008 32000 20480 1024 3584 2560 21504 7168 28672 7168 27648 9216 36864 9216 36864 12288 49152 12288)
 K=(29568 4096 5120 2560 8192 8192 8192 5120 13824 20480 3584 11008 5120 8192 3584 4096 14336 28672 4096 4096 3584 4096 18944 3584 7168 7168 7168 28672 9216 9216 9216 36864 12288 12288 12288 49152)
 N=(8 16 32)
@@ -13,15 +15,16 @@ debug_log="sparta_debug_main_v1.log"
 echo "M,K,N,SplitK,Sparsity,SparTA_Duration(ns),SparTA_TFLOPS" > "$output_csv"
 > "$debug_log"
 
-# 定义函数来计算 TFLOPS
+# 计算 TFLOPS
 calculate_tflops() {
     local m=$1
     local k=$2
     local n=$3
-    local duration_ns=$4  # 输入是纳秒
+    local duration_ns=$4
     awk -v m="$m" -v k="$k" -v n="$n" -v d="$duration_ns" 'BEGIN {print (2 * m * k * n) / (d / 1e9) / 1e12}'
 }
 
+# 处理 nsys 输出
 process_test_case() {
     local m=$1
     local k=$2
@@ -29,65 +32,59 @@ process_test_case() {
     local s=$4
     local sk=$5
 
-    echo "Debug: Starting test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
+    echo "Debug: Running test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
 
-    local sparse_gemm_min_time=""
-    local sputnik_kernel_time=0
-    local in_gpukernsum=false
+    # 运行 nsys 并捕获输出
+    nsys_output=$(nsys nvprof ./spmm_test_sparta $m $k $n $s $sk 2>&1)
 
-    while IFS= read -r line; do
-        if [[ $line =~ "Executing 'gpukernsum' stats report" ]]; then
-            in_gpukernsum=true
-            continue
-        fi
+    echo "Debug: nsys output:" >> "$debug_log"
+    echo "$nsys_output" >> "$debug_log"
 
-        if [[ "$in_gpukernsum" != true ]]; then
-            continue
-        fi
-
-        # 处理sparse_gemm kernel行
-        if [[ $line =~ sm86_xmma_sparse_gemm ]]; then
-            # 提取总时间和实例数
-            total_time=$(echo "$line" | awk '{print $2}')
-            instances=$(echo "$line" | awk '{print $3}')
-            if [[ -n "$total_time" && -n "$instances" && "$instances" -gt 0 ]]; then
-                # 计算单个实例的平均时间
-                kernel_time=$(awk "BEGIN {print $total_time / $instances}")
-                if [[ -z "$sparse_gemm_min_time" || $(awk "BEGIN {print ($kernel_time < $sparse_gemm_min_time)}") -eq 1 ]]; then
-                    sparse_gemm_min_time=$kernel_time
-                    echo "Debug: Updated sparse_gemm_min_time: $sparse_gemm_min_time ns (Total: $total_time ns, Instances: $instances)" >> "$debug_log"
-                fi
-            fi
-        # 处理sputnik kernel行
-        elif [[ $line =~ "void sputnik::<unnamed>::Kernel" ]]; then
-            # 提取总时间和实例数
-            total_time=$(echo "$line" | awk '{print $2}')
-            instances=$(echo "$line" | awk '{print $3}')
-            if [[ -n "$total_time" && -n "$instances" && "$instances" -gt 0 ]]; then
-                # 计算单个实例的平均时间
-                sputnik_kernel_time=$(awk "BEGIN {print $total_time / $instances}")
-                echo "Debug: Found sputnik kernel time: $sputnik_kernel_time ns (Total: $total_time ns, Instances: $instances)" >> "$debug_log"
-            fi
-        fi
-    done <<< "$nsys_output"
-
-    # 计算总时间
-    if [[ -n "$sparse_gemm_min_time" && $(awk "BEGIN {print ($sputnik_kernel_time > 0)}") -eq 1 ]]; then
-        sparTA_total_time=$(awk "BEGIN {print $sparse_gemm_min_time + $sputnik_kernel_time}")
-        echo "Debug: SparTA total time: $sparTA_total_time ns" >> "$debug_log"
-
-        # 计算 TFLOPS
-        tflops=$(calculate_tflops $m $k $n $sparTA_total_time)
-
-        # 输出结果到 CSV
-        echo "$m,$k,$n,$sk,$s,${sparTA_total_time},${tflops}" >> "$output_csv"
-        echo "Debug: Output to CSV - SparTA_Total_Time: $sparTA_total_time ns, TFLOPS: $tflops" >> "$debug_log"
-    else
-        echo "Debug: Missing sparse_gemm or sputnik kernel data for M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
+    # 提取 SparTA 运行时间（ms）
+    sparTA_time_ms=$(echo "$nsys_output" | grep -oP 'sparTA -> Time/ms: \K[0-9]+(\.[0-9]+)?')
+    if [[ -z "$sparTA_time_ms" ]]; then
+        echo "Error: Unable to extract SparTA execution time" >> "$debug_log"
+        return
     fi
 
-    echo "Debug: Finished test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
-    echo "" >> "$debug_log"
+    # 转换为纳秒
+    sparTA_time_ns=$(awk -v time_ms="$sparTA_time_ms" 'BEGIN {print time_ms * 1e6}')
+
+    # 提取 Sparse GEMM 内核的最小时间（ns）
+    sparse_gemm_min_time=""
+    while read -r line; do
+        kernel_time_ns=$(echo "$line" | awk '{print $3}' | tr -d ',')
+        if [[ -n "$kernel_time_ns" ]]; then
+            if [[ -z "$sparse_gemm_min_time" || "$(awk "BEGIN {print ($kernel_time_ns < $sparse_gemm_min_time)}")" -eq 1 ]]; then
+                sparse_gemm_min_time=$kernel_time_ns
+            fi
+        fi
+    done < <(echo "$nsys_output" | grep 'sm86_xmma_sparse_gemm')
+
+    # 提取 Sputnik 内核时间（ns）
+    sputnik_kernel_time=""
+    while read -r line; do
+        kernel_time_ns=$(echo "$line" | awk '{print $3}' | tr -d ',')
+        if [[ -n "$kernel_time_ns" ]]; then
+            sputnik_kernel_time=$kernel_time_ns
+        fi
+    done < <(echo "$nsys_output" | grep 'void sputnik::<unnamed>::Kernel')
+
+    # 确保变量有默认值
+    if [[ -z "$sparse_gemm_min_time" ]]; then sparse_gemm_min_time=0; fi
+    if [[ -z "$sputnik_kernel_time" ]]; then sputnik_kernel_time=0; fi
+
+    # 计算 SparTA 总时间（ns）
+    sparTA_total_time=$(awk "BEGIN {print $sparse_gemm_min_time + $sputnik_kernel_time}")
+
+    echo "Debug: SparTA total time: $sparTA_total_time ns" >> "$debug_log"
+
+    # 计算 TFLOPS
+    tflops=$(calculate_tflops $m $k $n $sparTA_total_time)
+
+    # 输出结果到 CSV
+    echo "$m,$k,$n,$sk,$s,${sparTA_total_time},${tflops}" >> "$output_csv"
+    echo "Debug: Output to CSV - SparTA_Total_Time: $sparTA_total_time ns, TFLOPS: $tflops" >> "$debug_log"
 }
 
 # 确保 M 和 K 数组长度相同
@@ -96,7 +93,7 @@ if [ ${#M[@]} -ne ${#K[@]} ]; then
     exit 1
 fi
 
-# 主循环
+# 遍历参数组合
 for ((i=0; i<${#M[@]}; i++)); do
     m=${M[i]}
     k=${K[i]}
