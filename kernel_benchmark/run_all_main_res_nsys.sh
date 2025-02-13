@@ -157,7 +157,7 @@ process_test_case() {
             echo "Debug: Invalid duration value: $duration or count: $count for kernel: $kernel" >> "$debug_log"
         fi
     done
-
+    rm report*
     echo "Debug: Finished test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
     echo "" >> "$debug_log"
 }
