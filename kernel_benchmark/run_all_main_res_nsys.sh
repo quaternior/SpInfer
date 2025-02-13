@@ -57,6 +57,8 @@ process_test_case() {
     declare -A kernel_counts
     local splitkreduce_kernel_time=0
     local splitkreduce_kernel_count=0
+    local splitkreduction_time=0
+    local splitkreduction_count=0
     local kernel_name=""
 
     # 运行 nsys 并捕获输出
@@ -99,13 +101,8 @@ process_test_case() {
             ((splitkreduce_kernel_count++))
         elif [[ "$kernel_name" == SplitK_Reduction* ]]; then
             echo "Processing SplitK_Reduction, Duration: $duration_ns ns" >> "$debug_log"
-            # 将 SplitK_Reduction 的时间累加到 SpMM_Kernel 的时间中
-            for key in "${!accumulated_times[@]}"; do
-                if [[ "$key" == *SpMM_Kernel* ]]; then
-                    accumulated_times[$key]=$(awk "BEGIN {print ${accumulated_times[$key]:-0} + $duration_ns}")
-                    ((kernel_counts[$key]++))
-                fi
-            done
+            splitkreduction_time=$(awk "BEGIN {print $splitkreduction_time + $duration_ns}")
+            ((splitkreduction_count++))
         else
             processed_name=$(process_kernel_name "$kernel_name")
             accumulated_times[$processed_name]=$(awk "BEGIN {print ${accumulated_times[$processed_name]:-0} + $duration_ns}")
@@ -127,6 +124,18 @@ process_test_case() {
         echo "Debug: Average splitKreduce_kernel time: $avg_splitkreduce_kernel_time ns" >> "$debug_log"
         accumulated_times[cuBLAS_TC]=$(awk "BEGIN {print ${accumulated_times[cuBLAS_TC]:-0} + $avg_splitkreduce_kernel_time}")
         echo "Debug: Added average splitKreduce_kernel time to cuBLAS_TC: ${accumulated_times[cuBLAS_TC]} ns" >> "$debug_log"
+    fi
+
+    # 计算 `SplitK_Reduction` 平均时间，并加到所有 `SpMM_Kernel`
+    if [[ $splitkreduction_count -gt 0 ]]; then
+        avg_splitkreduction_time=$(awk "BEGIN {print $splitkreduction_time / $splitkreduction_count}")
+        echo "Debug: Average SplitK_Reduction time: $avg_splitkreduction_time ns" >> "$debug_log"
+        for key in "${!accumulated_times[@]}"; do
+            if [[ "$key" == *SpMM_Kernel* ]]; then
+                accumulated_times[$key]=$(awk "BEGIN {print ${accumulated_times[$key]:-0} + $avg_splitkreduction_time}")
+                echo "Debug: Added average SplitK_Reduction time to $key: ${accumulated_times[$key]} ns" >> "$debug_log"
+            fi
+        done
     fi
 
     # 输出结果到 CSV
