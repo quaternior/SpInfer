@@ -40,18 +40,11 @@ process_test_case() {
     echo "Debug: nsys output:" >> "$debug_log"
     echo "$nsys_output" >> "$debug_log"
 
-    # 提取 SparTA 运行时间（ms）
-    sparTA_time_ms=$(echo "$nsys_output" | grep -oP 'sparTA -> Time/ms: \K[0-9]+(\.[0-9]+)?')
-    if [[ -z "$sparTA_time_ms" ]]; then
-        echo "Error: Unable to extract SparTA execution time" >> "$debug_log"
-        return
-    fi
+    # 初始化变量
+    local sparse_gemm_min_time=""
+    local sputnik_kernel_time=0
 
-    # 转换为纳秒
-    sparTA_time_ns=$(awk -v time_ms="$sparTA_time_ms" 'BEGIN {print time_ms * 1e6}')
-
-    # 提取 Sparse GEMM 内核的最小时间（ns）
-    sparse_gemm_min_time=""
+    # 解析 `sm86_xmma_sparse_gemm_*` 内核的 **最短时间**
     while read -r line; do
         kernel_time_ns=$(echo "$line" | awk '{print $3}' | tr -d ',')
         if [[ -n "$kernel_time_ns" ]]; then
@@ -61,8 +54,7 @@ process_test_case() {
         fi
     done < <(echo "$nsys_output" | grep 'sm86_xmma_sparse_gemm')
 
-    # 提取 Sputnik 内核时间（ns）
-    sputnik_kernel_time=""
+    # 解析 `sputnik::<unnamed>::Kernel` 内核的 **运行时间**
     while read -r line; do
         kernel_time_ns=$(echo "$line" | awk '{print $3}' | tr -d ',')
         if [[ -n "$kernel_time_ns" ]]; then
