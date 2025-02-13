@@ -30,7 +30,7 @@ process_kernel_name() {
 }
 
 # 设置输出文件
-output_csv="spmm_performance_results_main_v2_done.csv"
+output_csv="spmm_performance_results_main_v2.csv"
 debug_log="debug_main_nsys.log"
 
 # 创建或清空输出文件
