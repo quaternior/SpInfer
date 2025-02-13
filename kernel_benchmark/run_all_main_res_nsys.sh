@@ -72,7 +72,6 @@ process_test_case() {
 
     # 解析 `gpukernsum` 结果
     echo "Debug: Extracting kernel times from nsys_output..." >> "$debug_log"
-    # kernel_lines=$(echo "$nsys_output" | grep -E 'void|cutlass|ampere_|SpMM_Kernel|SplitK_Reduction|splitKreduce_kernel')
     kernel_lines=$(echo "$nsys_output" | grep -E 'cutlass.*tensorop|s1688gemm|s161616gemm|s16816gemm|sgemm|SpMM_Kernel_bitmap_v[1-3]|SpMM_Kernel<|SplitK_Reduction|splitKreduce_kernel')
     if [[ -z "$kernel_lines" ]]; then
         echo "Error: No kernel execution times found in nsys output" >> "$debug_log"
@@ -85,7 +84,6 @@ process_test_case() {
         # 提取 `Avg (ns)` 和 `Name`
         duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',' | sed 's/[[:space:]]//g')
         kernel_name=$(echo "$line" | awk '{for (i=15; i<=NF; i++) printf "%s ", $i; print ""}' | sed 's/[ \t]*$//')
-        # kernel_name=$(echo "$line" | awk '{for(i=1;i<=NF;i++) if($i ~ /SplitK_Reduction|SpMM_Kernel|ampere_|void/) {print $i; exit}}' | cut -d'(' -f1)
         echo "$kernel_name"
         # 过滤掉无效 `kernel_name`
         if [[ -z "$kernel_name" || "$kernel_name" =~ ^[0-9]+$ || "$kernel_name" =~ ^[[:punct:]]+$ ]]; then
