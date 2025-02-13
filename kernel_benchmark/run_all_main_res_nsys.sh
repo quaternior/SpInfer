@@ -65,7 +65,6 @@ process_test_case() {
     echo "Debug: Running nsys command..." >> "$debug_log"
     nsys_output=$(nsys nvprof ./spmm_test $m $k $n $s $sk 2>&1)
     echo "Debug: nsys command completed" >> "$debug_log"
-    echo "$nsys_output" >> "$debug_log"
 
     # 解析 `gpukernsum` 结果
     echo "Debug: Extracting kernel times from nsys_output..." >> "$debug_log"
@@ -79,14 +78,23 @@ process_test_case() {
     echo "$kernel_lines" >> "$debug_log"
 
     while read -r line; do
+        # 提取 `Avg (ns)`（第 4 列）和 `Name`（最后一列）
+        duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')
         kernel_name=$(echo "$line" | awk '{print $NF}')
-        duration_ns=$(echo "$line" | awk '{print $(NF-7)}' | tr -d ',')
 
-        if [[ -z "$duration_ns" || ! "$duration_ns" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "Error: Invalid duration for kernel $kernel_name: $duration_ns" >> "$debug_log"
+        # 过滤掉无效的 `kernel_name`
+        if [[ "$kernel_name" == "void" || "$kernel_name" == "int)" || "$kernel_name" == "(" || "$kernel_name" == "int" ]]; then
+            echo "Error: Skipping invalid kernel name: $kernel_name" >> "$debug_log"
             continue
         fi
 
+        # 确保 `duration_ns` 是有效数字
+        if [[ -z "$duration_ns" || ! "$duration_ns" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "Error: Invalid duration for kernel $kernel_name: $duration_ns, skipping CSV output" >> "$debug_log"
+            continue
+        fi
+
+        # 处理 SplitK 内核
         if [[ "$kernel_name" == *splitKreduce_kernel* ]]; then
             splitkreduce_kernel_time=$(awk "BEGIN {print $splitkreduce_kernel_time + $duration_ns}")
             ((splitkreduce_kernel_count++))
