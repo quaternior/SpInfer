@@ -24,7 +24,6 @@ calculate_tflops() {
     awk -v m="$m" -v k="$k" -v n="$n" -v d="$duration_ns" 'BEGIN {print (2 * m * k * n) / (d / 1e9) / 1e12}'
 }
 
-# 处理 nsys 输出
 process_test_case() {
     local m=$1
     local k=$2
@@ -44,31 +43,53 @@ process_test_case() {
     local sparse_gemm_min_time=""
     local sputnik_kernel_time=0
 
-    echo "Debug: Extracting Sparse GEMM kernel times..." >> "$debug_log"
+    echo "Debug: Extracting Sparse GEMM kernel times (using Avg (ns))..." >> "$debug_log"
 
-    # 遍历 `sm86_xmma_sparse_gemm_*` 内核，找到 **最小的 Min (ns)**
+    # 获取所有 `sm86_xmma_sparse_gemm_*` 内核的行
+    sparse_gemm_lines=$(echo "$nsys_output" | grep 'sm86_xmma_sparse_gemm')
+
+    echo "Debug: Sparse GEMM Kernel Lines Found:" >> "$debug_log"
+    echo "$sparse_gemm_lines" >> "$debug_log"
+
     while read -r line; do
-        kernel_min_ns=$(echo "$line" | awk '{print $7}' | tr -d ',')  # Min (ns) 是第 7 列
-        if [[ -n "$kernel_min_ns" ]]; then
-            if [[ -z "$sparse_gemm_min_time" || "$(awk "BEGIN {print ($kernel_min_ns < $sparse_gemm_min_time)}")" -eq 1 ]]; then
-                sparse_gemm_min_time=$kernel_min_ns
+        echo "Debug: Sparse GEMM Line: $line" >> "$debug_log"
+        
+        kernel_avg_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')  # 取 `Avg (ns)`（第 4 列）
+        
+        echo "Debug: Extracted Avg (ns) = $kernel_avg_ns" >> "$debug_log"
+
+        if [[ -n "$kernel_avg_ns" && "$kernel_avg_ns" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+            if [[ -z "$sparse_gemm_min_time" || "$(awk "BEGIN {print ($kernel_avg_ns < $sparse_gemm_min_time)}")" -eq 1 ]]; then
+                sparse_gemm_min_time=$kernel_avg_ns
+                echo "Debug: Updated Sparse GEMM Min Avg Time = $sparse_gemm_min_time" >> "$debug_log"
             fi
         fi
-    done < <(echo "$nsys_output" | grep 'sm86_xmma_sparse_gemm')
+    done <<< "$sparse_gemm_lines"
 
-    echo "Debug: Sparse GEMM Min Time = $sparse_gemm_min_time ns" >> "$debug_log"
+    echo "Debug: Final Sparse GEMM Min Avg Time = $sparse_gemm_min_time" >> "$debug_log"
 
     echo "Debug: Extracting Sputnik kernel time (Avg)..." >> "$debug_log"
 
     # 提取 `sputnik::<unnamed>::Kernel` 内核的 `Avg (ns)`
-    while read -r line; do
-        kernel_avg_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')  # Avg (ns) 是第 4 列
-        if [[ -n "$kernel_avg_ns" ]]; then
-            sputnik_kernel_time=$kernel_avg_ns
-        fi
-    done < <(echo "$nsys_output" | grep 'void sputnik::<unnamed>::Kernel')
+    sputnik_kernel_lines=$(echo "$nsys_output" | grep 'void sputnik::<unnamed>::Kernel')
 
-    echo "Debug: Sputnik Kernel Avg Time = $sputnik_kernel_time ns" >> "$debug_log"
+    echo "Debug: Sputnik Kernel Lines Found:" >> "$debug_log"
+    echo "$sputnik_kernel_lines" >> "$debug_log"
+
+    while read -r line; do
+        echo "Debug: Sputnik Kernel Line: $line" >> "$debug_log"
+
+        kernel_avg_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')  # 取 `Avg (ns)`（第 4 列）
+
+        echo "Debug: Extracted Sputnik Avg (ns) = $kernel_avg_ns" >> "$debug_log"
+
+        if [[ -n "$kernel_avg_ns" && "$kernel_avg_ns" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+            sputnik_kernel_time=$kernel_avg_ns
+            echo "Debug: Updated Sputnik Kernel Avg Time = $sputnik_kernel_time" >> "$debug_log"
+        fi
+    done <<< "$sputnik_kernel_lines"
+
+    echo "Debug: Final Sputnik Kernel Avg Time = $sputnik_kernel_time" >> "$debug_log"
 
     # 确保变量有默认值
     if [[ -z "$sparse_gemm_min_time" ]]; then sparse_gemm_min_time=0; fi
