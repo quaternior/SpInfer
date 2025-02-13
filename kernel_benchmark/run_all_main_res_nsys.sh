@@ -139,6 +139,9 @@ process_test_case() {
                 echo "Debug: Added average SplitK_Reduction time to $key: ${accumulated_times[$key]} ns" >> "$debug_log"
             fi
         done
+        # 加到 `Flash-LLM`
+        accumulated_times[Flash-LLM]=$(awk "BEGIN {print ${accumulated_times[Flash-LLM]:-0} + $avg_splitkreduction_time}")
+        echo "Debug: Added average SplitK_Reduction time to Flash-LLM: ${accumulated_times[Flash-LLM]} ns" >> "$debug_log"
     fi
 
     # 输出结果到 CSV
