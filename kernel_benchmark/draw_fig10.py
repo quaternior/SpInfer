@@ -59,7 +59,7 @@ def plot_data(data):
         subset = subset[subset['Kernel'] != 'cuBLAS_TC']
 
         # 打印每种方法的加速比范围进行验证
-        print(f"\nN={N} 加速比统计:")
+        print(f"\nN={N} Speedup summary over cuBLAS_TC:")
         for method in methods:
             method_data = subset[subset['Kernel'] == method]
             if not method_data.empty:
