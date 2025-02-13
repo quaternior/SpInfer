@@ -96,9 +96,11 @@ process_test_case() {
 
         # 处理 SplitK 内核
         if [[ "$kernel_name" == *splitKreduce_kernel* ]]; then
+            echo "Processing splitKreduce_kernel, Duration: $duration_ns ns" >> "$debug_log"
             splitkreduce_kernel_time=$(awk "BEGIN {print $splitkreduce_kernel_time + $duration_ns}")
             ((splitkreduce_kernel_count++))
         elif [[ "$kernel_name" == SplitK_Reduction* ]]; then
+            echo "Processing SplitK_Reduction, Duration: $duration_ns ns" >> "$debug_log"
             splitk_reduction_time=$(awk "BEGIN {print $splitk_reduction_time + $duration_ns}")
             ((splitk_reduction_count++))
         else
@@ -116,20 +118,41 @@ process_test_case() {
         return
     fi
 
+    # 计算 `splitKreduce_kernel` 平均时间，并加到 `cuBLAS_TC`
+    if [[ $splitkreduce_kernel_count -gt 0 ]]; then
+        avg_splitkreduce_kernel_time=$(awk "BEGIN {print $splitkreduce_kernel_time / $splitkreduce_kernel_count}")
+        echo "Debug: Average splitKreduce_kernel time: $avg_splitkreduce_kernel_time ns" >> "$debug_log"
+        accumulated_times[cuBLAS_TC]=$(awk "BEGIN {print ${accumulated_times[cuBLAS_TC]:-0} + $avg_splitkreduce_kernel_time}")
+        echo "Debug: Added average splitKreduce_kernel time to cuBLAS_TC: ${accumulated_times[cuBLAS_TC]} ns" >> "$debug_log"
+    fi
+
+    # 计算 `SplitK_Reduction` 平均时间，并加到 `SpInfer-SpMMV1/V2/V3` & `Flash-LLM`
+    if [[ $splitk_reduction_count -gt 0 ]]; then
+        avg_splitk_reduction_time=$(awk "BEGIN {print $splitk_reduction_time / $splitk_reduction_count}")
+        echo "Debug: Average SplitK_Reduction time: $avg_splitk_reduction_time ns" >> "$debug_log"
+        for key in "SpInfer-SpMMV1" "SpInfer-SpMMV2" "SpInfer-SpMMV3" "Flash-LLM"; do
+            accumulated_times[$key]=$(awk "BEGIN {print ${accumulated_times[$key]:-0} + $avg_splitk_reduction_time}")
+            echo "Debug: Added average SplitK_Reduction time to $key: ${accumulated_times[$key]} ns" >> "$debug_log"
+        done
+    fi
+
     # 输出结果到 CSV
+    echo "Debug: Preparing to write results to CSV" >> "$debug_log"
     for kernel in "${!accumulated_times[@]}"; do
         duration=${accumulated_times[$kernel]}
-        avg_duration=$(awk "BEGIN {print $duration / ${kernel_counts[$kernel]}}")
-        tflops=$(calculate_tflops $m $k $n $avg_duration)
-
-        echo "$m,$k,$n,$sk,$s,\"$kernel\",${avg_duration},${tflops}" >> "$output_csv"
-        echo "Debug: Output to CSV - Kernel: $kernel, Avg Duration: $avg_duration ns, TFLOPS: $tflops" >> "$debug_log"
+        count=${kernel_counts[$kernel]}
+        if [[ "$duration" =~ ^[0-9]+(\.[0-9]+)?$ && $count -gt 0 ]]; then
+            avg_duration=$(awk "BEGIN {print $duration / $count}")
+            tflops=$(calculate_tflops $m $k $n $avg_duration)
+            echo "$m,$k,$n,$sk,$s,\"$kernel\",${avg_duration},${tflops}" >> "$output_csv"
+            echo "Debug: Output to CSV - Kernel: $kernel, Avg Duration: $avg_duration ns, TFLOPS: $tflops" >> "$debug_log"
+        else
+            echo "Debug: Invalid duration value: $duration or count: $count for kernel: $kernel" >> "$debug_log"
+        fi
     done
 
-    # 清理 nsys 生成的报告文件
-    rm -f report*
-
     echo "Debug: Finished test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
+    echo "" >> "$debug_log"
 }
 
 
