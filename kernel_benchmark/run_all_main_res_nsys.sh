@@ -64,6 +64,10 @@ process_test_case() {
     nsys_output=$(nsys nvprof ./spmm_test $m $k $n $s $sk 2>&1)
     echo "Debug: nsys command completed" >> "$debug_log"
 
+    # 打印 nsys 的原始输出以便调试
+    echo "Debug: nsys raw output:" >> "$debug_log"
+    echo "$nsys_output" >> "$debug_log"
+
     # 解析 `gpukernsum` 结果
     echo "Debug: Extracting kernel times from nsys_output..." >> "$debug_log"
     kernel_lines=$(echo "$nsys_output" | grep -E 'void|cutlass|ampere_|SpMM_Kernel|SplitK_Reduction|splitKreduce_kernel')
@@ -73,12 +77,13 @@ process_test_case() {
         return
     fi
 
+    echo "Debug: Kernel lines extracted:" >> "$debug_log"
     echo "$kernel_lines" >> "$debug_log"
 
     while read -r line; do
         # 提取 `Avg (ns)` 和 `Name`
-        duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',' | sed 's/[[:space:]]//g')
-        kernel_name=$(echo "$line" | awk '{$1=$2=$3=$4=$5=$6=$7=$8=$9=$10=$11=""; print $0}' | sed 's/^[ \t]*//')
+        duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')
+        kernel_name=$(echo "$line" | awk '{for (i=12; i<=NF; i++) printf $i " "; print ""}' | sed 's/ *$//')
 
         # 过滤掉无效 `kernel_name`
         if [[ -z "$kernel_name" || "$kernel_name" =~ ^[0-9]+$ || "$kernel_name" =~ ^[[:punct:]]+$ ]]; then
