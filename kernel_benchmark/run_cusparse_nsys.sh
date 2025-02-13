@@ -1,3 +1,62 @@
+#!/bin/bash
+
+# M=(20480)
+# K=(4096)
+# N=(8 16 32)
+# SPLIT_K=(1)
+# SPARSITY=(40 50 60 70)
+
+M=(8192 4096 32000 3584 32000 1024 28672 5120 5120  3584  3584 4096 13824 8192  18944 14336 4096 8192  11008 32000 20480 1024 3584 2560 21504 7168 28672 7168 27648 9216 36864 9216 36864 12288 49152 12288)
+K=(29568 4096 5120 2560 8192  8192 8192  5120 13824 20480  3584 11008 5120 8192 3584  4096  14336 28672 4096 4096 3584 4096  18944 3584 7168 7168 7168 28672 9216 9216 9216 36864 12288 12288 12288 49152)
+N=(8 16 32)
+SPLIT_K=(1)
+SPARSITY=(40 50 60 70)
+
+
+# M=(3584 3584 1024 2560)
+# K=(2560 3584 4096 3584)
+# N=(8 16 32)
+# SPLIT_K=(1)
+# SPARSITY=(40 50 60 70)
+# 设置输出文件
+output_csv="cusparse_performance_results.csv"
+debug_log="cusparse_debug.log"
+
+# 创建或清空输出文件
+echo "M,K,N,SplitK,Sparsity,cuSPARSE_C_Duration(ns),cuSPARSE_R_Duration(ns),cuSPARSE_C_TFLOPS,cuSPARSE_R_TFLOPS" > "$output_csv"
+> "$debug_log"
+
+calculate_tflops() {
+    local m=$1
+    local k=$2
+    local n=$3
+    local duration_us=$4  # 假设输入是微秒
+    
+    if [[ -z "$duration_us" || "$duration_us" == "0" ]]; then
+        # 如果时间为空或为0，返回 N/A
+        echo "N/A"
+    else
+        # 计算 TFLOPS = (2 * M * K * N) / (time in seconds) / 1e12
+        awk -v m="$m" -v k="$k" -v n="$n" -v d="$duration_us" 'BEGIN {print (2 * m * k * n) / (d / 1e6) / 1e12}'
+    fi
+}
+# 定义函数来处理 ncu 输出中的时间单位
+convert_duration_to_useconds() {
+    local duration=$1
+    local unit=$2
+
+    if [[ $unit == "msecond" ]]; then
+        # 将毫秒转换为微秒
+        echo $(awk -v d="$duration" 'BEGIN {print d * 1000}')
+    elif [[ $unit == "usecond" ]]; then
+        # 如果已经是微秒，直接返回
+        echo "$duration"
+    else
+        # 如果单位未知，返回 0 并记录错误
+        echo "Error: Unknown time unit $unit" >> "$debug_log"
+        echo "0"
+    fi
+}
 process_test_case() {
     local m=$1
     local k=$2
