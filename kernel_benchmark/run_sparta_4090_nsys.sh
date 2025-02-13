@@ -46,6 +46,7 @@ process_test_case() {
     local sparse_gemm_time=0
     local sputnik_kernel_time=0
     local parsing_gpukernsum=false
+    local header_passed=false
 
     # 处理 nsys 输出
     while IFS= read -r line; do
@@ -60,32 +61,39 @@ process_test_case() {
             continue
         fi
 
-        # 跳过表头行
-        if [[ $line =~ "Time (%)" ]] || [[ $line =~ "--------" ]]; then
+        # 检测表头行
+        if [[ $line =~ "Time (%)" ]]; then
+            header_passed=true
             continue
         fi
 
-        # 当遇到空行时，表示 gpukernsum 部分结束
-        if [[ -z "$line" ]]; then
+        # 跳过分隔符行
+        if [[ $line =~ ^[[:space:]]*[-]+[[:space:]][-]+ ]]; then
+            continue
+        fi
+
+        # 当遇到空行或新的部分标题时，结束解析
+        if [[ -z "$line" ]] || [[ $line =~ "Executing" ]]; then
             parsing_gpukernsum=false
             continue
         fi
 
-        # 解析 kernel 时间
-        if [[ $line =~ sparse_gemm ]]; then
-            time=$(echo "$line" | awk '{print $2}')
-            if [[ -n "$time" && "$time" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-                # 如果找到更大的时间值，更新sparse_gemm_time
-                if [[ $(awk "BEGIN {print ($time > $sparse_gemm_time)}" 2>/dev/null) -eq 1 ]]; then
-                    sparse_gemm_time=$time
-                    echo "Debug: Found sparse_gemm time: $sparse_gemm_time ns" >> "$debug_log"
+        # 只处理通过表头后的行
+        if [ "$header_passed" = true ] && [[ -n "$line" ]]; then
+            # 使用awk处理行，提取Total Time和Name字段
+            read total_time name <<< $(echo "$line" | awk '{print $2, $NF}')
+
+            if [[ -n "$total_time" && "$total_time" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+                if [[ "$name" =~ sm86_xmma_sparse_gemm ]]; then
+                    # 如果找到更大的时间值，更新sparse_gemm_time
+                    if [[ $(awk "BEGIN {print ($total_time > $sparse_gemm_time)}" 2>/dev/null) -eq 1 ]]; then
+                        sparse_gemm_time=$total_time
+                        echo "Debug: Found sparse_gemm time: $sparse_gemm_time ns" >> "$debug_log"
+                    fi
+                elif [[ "$name" =~ "void sputnik::<unnamed>::Kernel" ]]; then
+                    sputnik_kernel_time=$total_time
+                    echo "Debug: Found sputnik kernel time: $sputnik_kernel_time ns" >> "$debug_log"
                 fi
-            fi
-        elif [[ $line =~ "void sputnik::<unnamed>::Kernel" ]]; then
-            time=$(echo "$line" | awk '{print $2}')
-            if [[ -n "$time" && "$time" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-                sputnik_kernel_time=$time
-                echo "Debug: Found sputnik kernel time: $sputnik_kernel_time ns" >> "$debug_log"
             fi
         fi
     done <<< "$nsys_output"
