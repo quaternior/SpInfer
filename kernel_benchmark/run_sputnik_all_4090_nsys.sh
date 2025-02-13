@@ -77,7 +77,7 @@ process_test_case() {
     echo "$m,$k,$n,$sk,$s,${sputnik_total_time},${tflops}" >> "$output_csv"
     echo "Debug: Output to CSV - Sputnik_Total_Time: $sputnik_total_time ns, TFLOPS: $tflops" >> "$debug_log"
 
-    # **清理 nsys 生成的报告文件**
+    # 清理 nsys 生成的报告文件
     echo "Debug: Removing report files..." >> "$debug_log"
     rm -f report*
     echo "Debug: Report files removed." >> "$debug_log"

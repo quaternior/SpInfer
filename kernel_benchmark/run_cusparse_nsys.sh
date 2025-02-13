@@ -116,7 +116,10 @@ process_test_case() {
     else
         echo "Debug: Missing cuSPARSE_C or cuSPARSE_R kernel data for M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
     fi
-
+    # 清理 nsys 生成的报告文件
+    echo "Debug: Removing report files..." >> "$debug_log"
+    rm -f report*
+    echo "Debug: Report files removed." >> "$debug_log"
     echo "Debug: Finished test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
     echo "" >> "$debug_log"
 }
