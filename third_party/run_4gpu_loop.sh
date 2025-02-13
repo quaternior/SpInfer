@@ -7,7 +7,7 @@ sed -i -E "s/(tensor_para_size=)[0-9]+/\14/" "$CONFIG_FILE"
 sed -i -E "s#(model_dir\s*=\s*).*#\1/data2/fanruibo/models/opt-30b/spinfer-model/4-gpu#" "$CONFIG_FILE"
 
 # Define the output directory path
-OUTPUT_DIR="${SpInfer_HOME}/third_party/FasterTransformer/OutputFile_4gpu_our_60_inlen64"
+OUTPUT_DIR="${SpInfer_HOME}/third_party/FasterTransformer/Result_13B/4-gpu"
 
 # Create the output directory if it does not exist
 mkdir -p "$OUTPUT_DIR"
