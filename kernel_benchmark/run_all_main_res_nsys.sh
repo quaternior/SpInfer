@@ -55,8 +55,6 @@ process_test_case() {
     # 初始化变量
     declare -A accumulated_times
     declare -A kernel_counts
-    local splitk_reduction_time=0
-    local splitk_reduction_count=0
     local splitkreduce_kernel_time=0
     local splitkreduce_kernel_count=0
     local kernel_name=""
@@ -102,11 +100,12 @@ process_test_case() {
         elif [[ "$kernel_name" == SplitK_Reduction* ]]; then
             echo "Processing SplitK_Reduction, Duration: $duration_ns ns" >> "$debug_log"
             # 将 SplitK_Reduction 的时间累加到 SpMM_Kernel 的时间中
-            processed_name=$(process_kernel_name "$kernel_name")
-            if [[ "$processed_name" == *SpMM_Kernel* ]]; then
-                accumulated_times[$processed_name]=$(awk "BEGIN {print ${accumulated_times[$processed_name]:-0} + $duration_ns}")
-                ((kernel_counts[$processed_name]++))
-            fi
+            for key in "${!accumulated_times[@]}"; do
+                if [[ "$key" == *SpMM_Kernel* ]]; then
+                    accumulated_times[$key]=$(awk "BEGIN {print ${accumulated_times[$key]:-0} + $duration_ns}")
+                    ((kernel_counts[$key]++))
+                fi
+            done
         else
             processed_name=$(process_kernel_name "$kernel_name")
             accumulated_times[$processed_name]=$(awk "BEGIN {print ${accumulated_times[$processed_name]:-0} + $duration_ns}")
@@ -148,7 +147,6 @@ process_test_case() {
     echo "Debug: Finished test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
     echo "" >> "$debug_log"
 }
-
 
 # 确保 M 和 K 数组长度相同
 if [ ${#M[@]} -ne ${#K[@]} ]; then
