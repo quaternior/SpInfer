@@ -82,12 +82,13 @@ process_test_case() {
         duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',' | sed 's/[[:space:]]//g')
         # kernel_name=$(echo "$line" | awk '{$1=$2=$3=$4=$5=$6=$7=$8=$9=$10=$11=""; print $0}' | sed 's/^[ \t]*//')
         kernel_name=$(echo "$line" | awk '{for(i=1;i<=NF;i++) if($i ~ /SplitK_Reduction|SpMM_Kernel|ampere_|void/) {print $i; exit}}' | cut -d'(' -f1)
+        echo ${kernel_name} >> "$debug_log"
         # 过滤掉无效 `kernel_name`
         if [[ -z "$kernel_name" || "$kernel_name" =~ ^[0-9]+$ || "$kernel_name" =~ ^[[:punct:]]+$ ]]; then
             echo "Error: Skipping invalid kernel name: $kernel_name" >> "$debug_log"
             continue
         fi
-
+        
         # 确保 `duration_ns` 是有效数字
         if [[ -z "$duration_ns" || ! "$duration_ns" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
             echo "Error: Invalid duration for kernel $kernel_name: $duration_ns, skipping CSV output" >> "$debug_log"
