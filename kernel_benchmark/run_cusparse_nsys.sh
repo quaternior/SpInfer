@@ -120,3 +120,35 @@ process_test_case() {
     echo "Debug: Finished test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
     echo "" >> "$debug_log"
 }
+# 确保 M 和 K 数组长度相同
+if [ ${#M[@]} -ne ${#K[@]} ]; then
+    echo "Error: M and K arrays must have the same length."
+    exit 1
+fi
+
+# 主循环
+for ((i=0; i<${#M[@]}; i++)); do
+    m=${M[i]}
+    k=${K[i]}
+    for n in "${N[@]}"; do
+        for s in "${SPARSITY[@]}"; do
+            for sk in "${SPLIT_K[@]}"; do
+                process_test_case $m $k $n $s $sk
+            done
+        done
+    done
+done
+
+echo "SparTA performance testing completed. Results saved in $output_csv"
+echo "Debug log saved in $debug_log"
+
+# 检查 CSV 文件是否为空
+if [ -s "$output_csv" ]; then
+    echo "CSV file is not empty."
+else
+    echo "CSV file is empty. Please check the debug log for more information."
+fi
+
+# 显示 CSV 文件的前几行
+echo "First few lines of the CSV file:"
+head -n 5 "$output_csv"
