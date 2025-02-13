@@ -100,7 +100,7 @@ process_test_case() {
             echo "Processing splitKreduce_kernel, Duration: $duration_ns ns" >> "$debug_log"
             splitkreduce_kernel_time=$(awk "BEGIN {print $splitkreduce_kernel_time + $duration_ns}")
             ((splitkreduce_kernel_count++))
-        elif [[ "$kernel_name" == *SplitK_Reduction* ]]; then
+        elif [[ "$kernel_name" ==  *"SplitK_Reduction"* ]]; then
             echo "Processing SplitK_Reduction, Duration: $duration_ns ns" >> "$debug_log"
             splitkreduction_time=$(awk "BEGIN {print $splitkreduction_time + $duration_ns}")
             ((splitkreduction_count++))
