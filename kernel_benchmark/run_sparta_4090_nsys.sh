@@ -31,57 +31,52 @@ process_test_case() {
 
     echo "Debug: Starting test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
 
-    # 初始化变量
-    local sparse_gemm_min_time=""  # 保持为空字符串，与原始逻辑一致
+    local sparse_gemm_min_time=""
     local sputnik_kernel_time=0
     local in_gpukernsum=false
 
-    # 运行 nsys 并捕获输出
-    echo "Debug: Running nsys command..." >> "$debug_log"
-    nsys_output=$(nsys nvprof spmm_test_sparta $m $k $n $s $sk 2>&1)
-    echo "Debug: nsys command completed" >> "$debug_log"
-
-    # 将完整输出写入日志文件
-    echo "Debug: nsys output:" >> "$debug_log"
-    echo "$nsys_output" >> "$debug_log"
-
-    # 处理输出
     while IFS= read -r line; do
-        # 检测gpukernsum部分的开始
         if [[ $line =~ "Executing 'gpukernsum' stats report" ]]; then
             in_gpukernsum=true
             continue
         fi
 
-        # 如果不在gpukernsum部分，继续下一行
         if [[ "$in_gpukernsum" != true ]]; then
             continue
         fi
 
         # 处理sparse_gemm kernel行
         if [[ $line =~ sm86_xmma_sparse_gemm ]]; then
-            # 提取时间（纳秒）
-            kernel_time=$(echo "$line" | awk '{print $2}')
-            if [[ -n "$kernel_time" ]]; then
+            # 提取总时间和实例数
+            total_time=$(echo "$line" | awk '{print $2}')
+            instances=$(echo "$line" | awk '{print $3}')
+            if [[ -n "$total_time" && -n "$instances" && "$instances" -gt 0 ]]; then
+                # 计算单个实例的平均时间
+                kernel_time=$(awk "BEGIN {print $total_time / $instances}")
                 if [[ -z "$sparse_gemm_min_time" || $(awk "BEGIN {print ($kernel_time < $sparse_gemm_min_time)}") -eq 1 ]]; then
                     sparse_gemm_min_time=$kernel_time
-                    echo "Debug: Updated sparse_gemm_min_time: $sparse_gemm_min_time ns" >> "$debug_log"
+                    echo "Debug: Updated sparse_gemm_min_time: $sparse_gemm_min_time ns (Total: $total_time ns, Instances: $instances)" >> "$debug_log"
                 fi
             fi
         # 处理sputnik kernel行
         elif [[ $line =~ "void sputnik::<unnamed>::Kernel" ]]; then
-            # 提取时间（纳秒）
-            sputnik_kernel_time=$(echo "$line" | awk '{print $2}')
-            echo "Debug: Found sputnik kernel time: $sputnik_kernel_time ns" >> "$debug_log"
+            # 提取总时间和实例数
+            total_time=$(echo "$line" | awk '{print $2}')
+            instances=$(echo "$line" | awk '{print $3}')
+            if [[ -n "$total_time" && -n "$instances" && "$instances" -gt 0 ]]; then
+                # 计算单个实例的平均时间
+                sputnik_kernel_time=$(awk "BEGIN {print $total_time / $instances}")
+                echo "Debug: Found sputnik kernel time: $sputnik_kernel_time ns (Total: $total_time ns, Instances: $instances)" >> "$debug_log"
+            fi
         fi
     done <<< "$nsys_output"
 
-    # 计算总时间，与原始逻辑保持一致
+    # 计算总时间
     if [[ -n "$sparse_gemm_min_time" && $(awk "BEGIN {print ($sputnik_kernel_time > 0)}") -eq 1 ]]; then
         sparTA_total_time=$(awk "BEGIN {print $sparse_gemm_min_time + $sputnik_kernel_time}")
         echo "Debug: SparTA total time: $sparTA_total_time ns" >> "$debug_log"
 
-        # 计算 TFLOPS（使用纳秒作为输入）
+        # 计算 TFLOPS
         tflops=$(calculate_tflops $m $k $n $sparTA_total_time)
 
         # 输出结果到 CSV
