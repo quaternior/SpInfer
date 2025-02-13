@@ -39,7 +39,7 @@ process_test_case() {
 
     # 运行 nsys 并捕获输出
     echo "Debug: Running nsys command..." >> "$debug_log"
-    nsys_output=$(nsys profile --stats=true -o /dev/null ./spmm_test_sparta $m $k $n $s $sk 2>&1)
+    nsys_output=$(nsys profile --stats=true -o ./ ./spmm_test_sparta $m $k $n $s $sk 2>&1)
     echo "Debug: nsys command completed" >> "$debug_log"
 
     # 将完整 nsys 输出写入日志文件
