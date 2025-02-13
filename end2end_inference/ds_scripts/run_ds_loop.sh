@@ -3,7 +3,7 @@
 EXE="${SpInfer_HOME}/end2end_inference/ds_scripts/inference-test.py"
 
 # Define the output directory path
-OUTPUT_DIR="${SpInfer_HOME}/end2end_inference/ds_scripts/ds_result/OutputFile_2gpu_ds_60_inlen64"
+OUTPUT_DIR="${SpInfer_HOME}/end2end_inference/ds_scripts/ds_result/2-gpu"
 
 # Create the output directory if it does not exist
 mkdir -p "$OUTPUT_DIR"
@@ -31,7 +31,7 @@ done
 
 # gpus=4
 # Define the output directory path
-OUTPUT_DIR="${SpInfer_HOME}/end2end_inference/ds_scripts/ds_result/OutputFile_4gpu_ds_60_inlen64"
+OUTPUT_DIR="${SpInfer_HOME}/end2end_inference/ds_scripts/ds_result/4-gpu"
 
 # Create the output directory if it does not exist
 mkdir -p "$OUTPUT_DIR"
