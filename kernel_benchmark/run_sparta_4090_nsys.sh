@@ -33,66 +33,85 @@ process_test_case() {
 
     echo "Debug: Starting test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
 
-    # 初始化变量
-    local sparse_gemm_time=0
-    local sputnik_kernel_time=0
-
     # 运行 nsys 并捕获输出
     echo "Debug: Running nsys command..." >> "$debug_log"
-    nsys_output=$(nsys profile --stats=true -o ./ ./spmm_test_sparta $m $k $n $s $sk 2>&1)
+    nsys_output=$(CUDA_VISIBLE_DEVICES=0 nsys nvprof ./spmm_test_sparta $m $k $n $s $sk 2>&1)
     echo "Debug: nsys command completed" >> "$debug_log"
 
-    # 将完整 nsys 输出写入日志文件
+    # 将完整输出写入日志文件
     echo "Debug: nsys output:" >> "$debug_log"
     echo "$nsys_output" >> "$debug_log"
 
-    # 处理 nsys 输出，查找特定的 kernel 执行时间
+    # 初始化变量
+    local sparse_gemm_time=0
+    local sputnik_kernel_time=0
+    local parsing_gpukernsum=false
+
+    # 处理 nsys 输出
     while IFS= read -r line; do
-        # 查找 sparse_gemm kernel（使用更通用的匹配模式）
+        # 检测是否进入 gpukernsum 部分
+        if [[ $line =~ "Executing 'gpukernsum' stats report" ]]; then
+            parsing_gpukernsum=true
+            continue
+        fi
+
+        # 如果还没有到 gpukernsum 部分，继续下一行
+        if [ "$parsing_gpukernsum" = false ]; then
+            continue
+        fi
+
+        # 跳过表头行
+        if [[ $line =~ "Time (%)" ]] || [[ $line =~ "--------" ]]; then
+            continue
+        fi
+
+        # 当遇到空行时，表示 gpukernsum 部分结束
+        if [[ -z "$line" ]]; then
+            parsing_gpukernsum=false
+            continue
+        fi
+
+        # 解析 kernel 时间
         if [[ $line =~ sparse_gemm ]]; then
-            # 提取时间（纳秒）并转换为微秒
-            local time_ns=$(echo "$line" | awk '{gsub(/,/,"",$3); print $3}')
-            if [[ -n "$time_ns" ]]; then
-                local time_us=$(echo "$time_ns / 1000" | bc -l)
-                if [[ -z "$sparse_gemm_time" || $(echo "$time_us < $sparse_gemm_time" | bc -l) -eq 1 ]]; then
-                    sparse_gemm_time=$time_us
-                    echo "Debug: Updated sparse_gemm time: $sparse_gemm_time us" >> "$debug_log"
+            time=$(echo "$line" | awk '{print $2}')
+            if [[ -n "$time" && "$time" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+                # 如果找到更大的时间值，更新sparse_gemm_time
+                if [[ $(awk "BEGIN {print ($time > $sparse_gemm_time)}" 2>/dev/null) -eq 1 ]]; then
+                    sparse_gemm_time=$time
+                    echo "Debug: Found sparse_gemm time: $sparse_gemm_time ns" >> "$debug_log"
                 fi
             fi
-        # 查找 sputnik kernel
         elif [[ $line =~ "void sputnik::<unnamed>::Kernel" ]]; then
-            # 提取时间（纳秒）并转换为微秒
-            local time_ns=$(echo "$line" | awk '{gsub(/,/,"",$3); print $3}')
-            if [[ -n "$time_ns" ]]; then
-                sputnik_kernel_time=$(echo "$time_ns / 1000" | bc -l)
-                echo "Debug: Found sputnik kernel time: $sputnik_kernel_time us" >> "$debug_log"
+            time=$(echo "$line" | awk '{print $2}')
+            if [[ -n "$time" && "$time" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+                sputnik_kernel_time=$time
+                echo "Debug: Found sputnik kernel time: $sputnik_kernel_time ns" >> "$debug_log"
             fi
         fi
     done <<< "$nsys_output"
 
-    # 检查是否获取到两个kernel的时间
-    if [[ -n "$sparse_gemm_time" && -n "$sputnik_kernel_time" ]]; then
-        # 计算总时间
-        local sparta_total_time=$(echo "$sparse_gemm_time + $sputnik_kernel_time" | bc -l)
-        
+    # 检查是否成功获取到时间
+    if [[ $(awk "BEGIN {print ($sparse_gemm_time > 0)}" 2>/dev/null) -eq 0 ]]; then
+        echo "Warning: No valid sparse_gemm time found for M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
+    fi
+    if [[ $(awk "BEGIN {print ($sputnik_kernel_time > 0)}" 2>/dev/null) -eq 0 ]]; then
+        echo "Warning: No valid sputnik kernel time found for M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
+    fi
+
+    # 计算总时间（纳秒转微秒）
+    if [[ $(awk "BEGIN {print ($sparse_gemm_time > 0 && $sputnik_kernel_time > 0)}" 2>/dev/null) -eq 1 ]]; then
+        sparTA_total_time=$(awk "BEGIN {print ($sparse_gemm_time + $sputnik_kernel_time) / 1000}")
+        echo "Debug: SparTA total time: $sparTA_total_time us" >> "$debug_log"
+
         # 计算 TFLOPS
-        local tflops=$(calculate_tflops $m $k $n $sparta_total_time)
+        tflops=$(calculate_tflops $m $k $n $sparTA_total_time)
 
-        # 格式化输出，保留固定小数位
-        sparta_total_time=$(printf "%.3f" $sparta_total_time)
-        tflops=$(printf "%.3f" $tflops)
-
-        # 输出结果到 CSV
-        echo "$m,$k,$n,$sk,$s,${sparta_total_time},${tflops}" >> "$output_csv"
-        echo "Debug: Output to CSV - SparTA_Total_Time: $sparta_total_time us, TFLOPS: $tflops" >> "$debug_log"
+        # 输出结果到 CSV（保持时间单位为纳秒）
+        total_time_ns=$(awk "BEGIN {print $sparse_gemm_time + $sputnik_kernel_time}")
+        echo "$m,$k,$n,$sk,$s,${total_time_ns},${tflops}" >> "$output_csv"
+        echo "Debug: Output to CSV - SparTA_Total_Time: $total_time_ns ns, TFLOPS: $tflops" >> "$debug_log"
     else
-        echo "Debug: Missing kernel timing data for M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
-        if [[ -z "$sparse_gemm_time" ]]; then
-            echo "Debug: sparse_gemm time not found" >> "$debug_log"
-        fi
-        if [[ -z "$sputnik_kernel_time" ]]; then
-            echo "Debug: sputnik kernel time not found" >> "$debug_log"
-        fi
+        echo "Error: Missing kernel timing data for M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
     fi
 
     echo "Debug: Finished test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
