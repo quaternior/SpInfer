@@ -44,23 +44,31 @@ process_test_case() {
     local sparse_gemm_min_time=""
     local sputnik_kernel_time=0
 
-    # 解析 `sm86_xmma_sparse_gemm_*` 内核的 **最短时间**
+    echo "Debug: Extracting Sparse GEMM kernel times..." >> "$debug_log"
+
+    # 遍历 `sm86_xmma_sparse_gemm_*` 内核，找到 **最小的 Min (ns)**
     while read -r line; do
-        kernel_time_ns=$(echo "$line" | awk '{print $3}' | tr -d ',')
-        if [[ -n "$kernel_time_ns" ]]; then
-            if [[ -z "$sparse_gemm_min_time" || "$(awk "BEGIN {print ($kernel_time_ns < $sparse_gemm_min_time)}")" -eq 1 ]]; then
-                sparse_gemm_min_time=$kernel_time_ns
+        kernel_min_ns=$(echo "$line" | awk '{print $7}' | tr -d ',')  # Min (ns) 是第 7 列
+        if [[ -n "$kernel_min_ns" ]]; then
+            if [[ -z "$sparse_gemm_min_time" || "$(awk "BEGIN {print ($kernel_min_ns < $sparse_gemm_min_time)}")" -eq 1 ]]; then
+                sparse_gemm_min_time=$kernel_min_ns
             fi
         fi
     done < <(echo "$nsys_output" | grep 'sm86_xmma_sparse_gemm')
 
-    # 解析 `sputnik::<unnamed>::Kernel` 内核的 **运行时间**
+    echo "Debug: Sparse GEMM Min Time = $sparse_gemm_min_time ns" >> "$debug_log"
+
+    echo "Debug: Extracting Sputnik kernel time (Avg)..." >> "$debug_log"
+
+    # 提取 `sputnik::<unnamed>::Kernel` 内核的 `Avg (ns)`
     while read -r line; do
-        kernel_time_ns=$(echo "$line" | awk '{print $3}' | tr -d ',')
-        if [[ -n "$kernel_time_ns" ]]; then
-            sputnik_kernel_time=$kernel_time_ns
+        kernel_avg_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')  # Avg (ns) 是第 4 列
+        if [[ -n "$kernel_avg_ns" ]]; then
+            sputnik_kernel_time=$kernel_avg_ns
         fi
     done < <(echo "$nsys_output" | grep 'void sputnik::<unnamed>::Kernel')
+
+    echo "Debug: Sputnik Kernel Avg Time = $sputnik_kernel_time ns" >> "$debug_log"
 
     # 确保变量有默认值
     if [[ -z "$sparse_gemm_min_time" ]]; then sparse_gemm_min_time=0; fi
@@ -78,7 +86,6 @@ process_test_case() {
     echo "$m,$k,$n,$sk,$s,${sparTA_total_time},${tflops}" >> "$output_csv"
     echo "Debug: Output to CSV - SparTA_Total_Time: $sparTA_total_time ns, TFLOPS: $tflops" >> "$debug_log"
 }
-
 # 确保 M 和 K 数组长度相同
 if [ ${#M[@]} -ne ${#K[@]} ]; then
     echo "Error: M and K arrays must have the same length."
