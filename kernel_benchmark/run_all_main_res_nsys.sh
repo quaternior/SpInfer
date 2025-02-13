@@ -84,7 +84,7 @@ process_test_case() {
         # 提取 `Avg (ns)` 和 `Name`
         duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',' | sed 's/[[:space:]]//g')
         kernel_name=$(echo "$line" | awk '{for (i=15; i<=NF; i++) printf "%s ", $i; print ""}' | sed 's/[ \t]*$//')
-        echo "$kernel_name"
+        # echo "$kernel_name"
         # 过滤掉无效 `kernel_name`
         if [[ -z "$kernel_name" || "$kernel_name" =~ ^[0-9]+$ || "$kernel_name" =~ ^[[:punct:]]+$ ]]; then
             echo "Error: Skipping invalid kernel name: $kernel_name" >> "$debug_log"
