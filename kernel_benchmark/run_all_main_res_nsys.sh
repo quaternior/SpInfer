@@ -83,7 +83,7 @@ process_test_case() {
 
         # 提取 `Avg (ns)` 和 `Kernel Name`
         duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')
-        kernel_name=$(echo "$line" | awk '{for (i=12; i<=NF; i++) printf "%s ", $i; print ""}' | sed -E 's/^[ \t]+//; s/[ \t]+$//')
+        kernel_name=$(echo "$line" | awk '{print $(NF-2), $(NF-1), $NF}' | sed -E 's/^[ \t]+//; s/[ \t]+$//')
 
         # 过滤掉无效 `kernel_name`
         if [[ -z "$kernel_name" || "$kernel_name" =~ ^[0-9]+$ || "$kernel_name" =~ ^[[:punct:]]+$ ]]; then
@@ -153,7 +153,6 @@ process_test_case() {
     echo "Debug: Finished test case M=$m K=$k N=$n S=$s SK=$sk" >> "$debug_log"
     echo "" >> "$debug_log"
 }
-
 
 # 确保 M 和 K 数组长度相同
 if [ ${#M[@]} -ne ${#K[@]} ]; then
