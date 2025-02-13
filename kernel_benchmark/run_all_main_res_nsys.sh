@@ -101,8 +101,12 @@ process_test_case() {
             ((splitkreduce_kernel_count++))
         elif [[ "$kernel_name" == SplitK_Reduction* ]]; then
             echo "Processing SplitK_Reduction, Duration: $duration_ns ns" >> "$debug_log"
-            splitk_reduction_time=$(awk "BEGIN {print $splitk_reduction_time + $duration_ns}")
-            ((splitk_reduction_count++))
+            # 将 SplitK_Reduction 的时间累加到 SpMM_Kernel 的时间中
+            processed_name=$(process_kernel_name "$kernel_name")
+            if [[ "$processed_name" == *SpMM_Kernel* ]]; then
+                accumulated_times[$processed_name]=$(awk "BEGIN {print ${accumulated_times[$processed_name]:-0} + $duration_ns}")
+                ((kernel_counts[$processed_name]++))
+            fi
         else
             processed_name=$(process_kernel_name "$kernel_name")
             accumulated_times[$processed_name]=$(awk "BEGIN {print ${accumulated_times[$processed_name]:-0} + $duration_ns}")
@@ -124,16 +128,6 @@ process_test_case() {
         echo "Debug: Average splitKreduce_kernel time: $avg_splitkreduce_kernel_time ns" >> "$debug_log"
         accumulated_times[cuBLAS_TC]=$(awk "BEGIN {print ${accumulated_times[cuBLAS_TC]:-0} + $avg_splitkreduce_kernel_time}")
         echo "Debug: Added average splitKreduce_kernel time to cuBLAS_TC: ${accumulated_times[cuBLAS_TC]} ns" >> "$debug_log"
-    fi
-
-    # 计算 `SplitK_Reduction` 平均时间，并加到 `SpInfer-SpMMV1/V2/V3` & `Flash-LLM`
-    if [[ $splitk_reduction_count -gt 0 ]]; then
-        avg_splitk_reduction_time=$(awk "BEGIN {print $splitk_reduction_time / $splitk_reduction_count}")
-        echo "Debug: Average SplitK_Reduction time: $avg_splitk_reduction_time ns" >> "$debug_log"
-        for key in "SpInfer-SpMMV1" "SpInfer-SpMMV2" "SpInfer-SpMMV3" "Flash-LLM"; do
-            accumulated_times[$key]=$(awk "BEGIN {print ${accumulated_times[$key]:-0} + $avg_splitk_reduction_time}")
-            echo "Debug: Added average SplitK_Reduction time to $key: ${accumulated_times[$key]} ns" >> "$debug_log"
-        done
     fi
 
     # 输出结果到 CSV
