@@ -126,12 +126,12 @@ process_test_case() {
         echo "Debug: Added average splitKreduce_kernel time to cuBLAS_TC: ${accumulated_times[cuBLAS_TC]} ns" >> "$debug_log"
     fi
 
-    # 计算 `SplitK_Reduction` 平均时间，并加到所有 `SpMM_Kernel`
-    if [[ $splitkreduction_count -gt 0 ]]; then
+     if [[ $splitkreduction_count -gt 0 ]]; then
         avg_splitkreduction_time=$(awk "BEGIN {print $splitkreduction_time / $splitkreduction_count}")
         echo "Debug: Average SplitK_Reduction time: $avg_splitkreduction_time ns" >> "$debug_log"
         for key in "${!accumulated_times[@]}"; do
-            if [[ "$key" == *SpMM_Kernel* ]]; then
+            # 匹配处理后的SpMM内核名称，例如以"SpInfer-SpMM"开头
+            if [[ "$key" == SpInfer-SpMM* ]]; then
                 accumulated_times[$key]=$(awk "BEGIN {print ${accumulated_times[$key]:-0} + $avg_splitkreduction_time}")
                 echo "Debug: Added average SplitK_Reduction time to $key: ${accumulated_times[$key]} ns" >> "$debug_log"
             fi
