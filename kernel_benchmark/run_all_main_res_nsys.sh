@@ -55,16 +55,21 @@ process_test_case() {
     # 初始化变量
     declare -A accumulated_times
     declare -A kernel_counts
+    local splitk_reduction_time=0
+    local splitk_reduction_count=0
+    local splitkreduce_kernel_time=0
+    local splitkreduce_kernel_count=0
     local kernel_name=""
 
     # 运行 nsys 并捕获输出
     echo "Debug: Running nsys command..." >> "$debug_log"
     nsys_output=$(nsys nvprof ./spmm_test $m $k $n $s $sk 2>&1)
     echo "Debug: nsys command completed" >> "$debug_log"
+    echo "$nsys_output" >> "$debug_log"
 
     # 解析 `gpukernsum` 结果
     echo "Debug: Extracting kernel times from nsys_output..." >> "$debug_log"
-    kernel_lines=$(echo "$nsys_output" | grep 'gpu__time_duration.sum')
+    kernel_lines=$(echo "$nsys_output" | grep -E 'void|cutlass|ampere_|SpMM_Kernel|SplitK_Reduction|splitKreduce_kernel')
 
     if [[ -z "$kernel_lines" ]]; then
         echo "Error: No kernel execution times found in nsys output" >> "$debug_log"
@@ -75,32 +80,51 @@ process_test_case() {
 
     while read -r line; do
         kernel_name=$(echo "$line" | awk '{print $NF}')
-        duration_ns=$(echo "$line" | awk '{print $4}' | tr -d ',')
+        duration_ns=$(echo "$line" | awk '{print $(NF-7)}' | tr -d ',')
 
         if [[ -z "$duration_ns" || ! "$duration_ns" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
             echo "Error: Invalid duration for kernel $kernel_name: $duration_ns" >> "$debug_log"
             continue
         fi
 
-        processed_name=$(process_kernel_name "$kernel_name")
-        accumulated_times[$processed_name]=$(awk "BEGIN {print ${accumulated_times[$processed_name]:-0} + $duration_ns}")
-        ((kernel_counts[$processed_name]++))
-
+        if [[ "$kernel_name" == *splitKreduce_kernel* ]]; then
+            splitkreduce_kernel_time=$(awk "BEGIN {print $splitkreduce_kernel_time + $duration_ns}")
+            ((splitkreduce_kernel_count++))
+        elif [[ "$kernel_name" == SplitK_Reduction* ]]; then
+            splitk_reduction_time=$(awk "BEGIN {print $splitk_reduction_time + $duration_ns}")
+            ((splitk_reduction_count++))
+        else
+            processed_name=$(process_kernel_name "$kernel_name")
+            accumulated_times[$processed_name]=$(awk "BEGIN {print ${accumulated_times[$processed_name]:-0} + $duration_ns}")
+            ((kernel_counts[$processed_name]++))
+        fi
     done <<< "$kernel_lines"
 
     echo "Debug: Accumulated kernel times:" >> "$debug_log"
     declare -p accumulated_times >> "$debug_log"
 
+    if [[ ${#accumulated_times[@]} -eq 0 ]]; then
+        echo "Error: No valid kernel times found, skipping CSV output" >> "$debug_log"
+        return
+    fi
+
+    # 计算 SplitK 平均时间并加到对应的计算内核
+    if [[ $splitkreduce_kernel_count -gt 0 ]]; then
+        avg_splitkreduce_kernel_time=$(awk "BEGIN {print $splitkreduce_kernel_time / $splitkreduce_kernel_count}")
+        accumulated_times[cuBLAS_TC]=$(awk "BEGIN {print ${accumulated_times[cuBLAS_TC]:-0} + $avg_splitkreduce_kernel_time}")
+    fi
+
+    if [[ $splitk_reduction_count -gt 0 ]]; then
+        avg_splitk_reduction_time=$(awk "BEGIN {print $splitk_reduction_time / $splitk_reduction_count}")
+        for key in "SpInfer-SpMMV1" "SpInfer-SpMMV2" "SpInfer-SpMMV3" "Flash-LLM"; do
+            accumulated_times[$key]=$(awk "BEGIN {print ${accumulated_times[$key]:-0} + $avg_splitk_reduction_time}")
+        done
+    fi
+
     # 输出结果到 CSV
     for kernel in "${!accumulated_times[@]}"; do
         duration=${accumulated_times[$kernel]}
-        count=${kernel_counts[$kernel]}
-        if [[ -z "$duration" || ! "$duration" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "Error: Skipping kernel $kernel due to invalid duration" >> "$debug_log"
-            continue
-        fi
-
-        avg_duration=$(awk "BEGIN {print $duration / $count}")
+        avg_duration=$(awk "BEGIN {print $duration / ${kernel_counts[$kernel]}}")
         tflops=$(calculate_tflops $m $k $n $avg_duration)
 
         echo "$m,$k,$n,$sk,$s,\"$kernel\",${avg_duration},${tflops}" >> "$output_csv"
