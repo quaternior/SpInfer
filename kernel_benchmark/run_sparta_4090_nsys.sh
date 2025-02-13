@@ -38,7 +38,7 @@ process_test_case() {
     local cusparse_r_time=0
 
     echo "Debug: Running nsys command..." >> "$debug_log"
-    nsys_output=$(nsys profile --stats=true -o /dev/null ./spmm_test_cusparse $m $k $n $s $sk 2>&1)
+    nsys_output=$(nsys profile --stats=true -o ./ ./spmm_test_cusparse $m $k $n $s $sk 2>&1)
     echo "Debug: nsys command completed" >> "$debug_log"
 
     echo "Debug: nsys output:" >> "$debug_log"
