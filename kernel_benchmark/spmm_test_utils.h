@@ -428,7 +428,7 @@ void SaveSparTAPerformanceData(const char* filename, int M, int K, int N, int Sp
 
     // Write data for sparTA
     fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
-            M, K, N, SplitK, Sparsity, "sparTA", 
+            M, K, N, SplitK, Sparsity, "SparTA", 
             sparta_duration_ns, tflops_sparTA);
 
     fclose(fp);
