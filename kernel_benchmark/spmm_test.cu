@@ -239,7 +239,7 @@ int main(int argc, char** argv)
     cudaFree(D_cublas);
     /////////////////////////////////////////////////////////////////////////////////////////////////
 //#endif
-
+auto Split_K = SPLIT_K;
 
 
 // bitmapv1
@@ -300,7 +300,7 @@ int main(int argc, char** argv)
     // printf("Done! Compressed A matrix for bitmap v1 GPU kernel.\n");
     
     // printf("Launching bitmapv1 without Ahead of Time Sparse Data Reordering...\n");
-    // auto Split_K = SPLIT_K;
+
     // printf("Split_K = %d\n", Split_K);
     // half* Reduction_Workspace_bitmapv1 = NULL;
     // cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace_bitmapv1), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
@@ -718,8 +718,8 @@ int main(int argc, char** argv)
     /////////////////////////////////////////////////////////////////////////////////////////////////
 
     double totalError_SpMM2 = 0.0;
-    double totalError_SpMM_bitmapv1 = 0.0;
-    double totalError_SpMM_bitmapv2 = 0.0;
+    // double totalError_SpMM_bitmapv1 = 0.0;
+    // double totalError_SpMM_bitmapv2 = 0.0;
     double totalError_SpMM_bitmapv3 = 0.0;
 
     // double totalError_SpMM2 = ComputeTotalError(D_cublas_h, D_SpMM_h2, M_GLOBAL, N_GLOBAL);
@@ -734,8 +734,8 @@ int main(int argc, char** argv)
     free(D_SpMM_h2);
     // free(D_SpMM_h1);
     // free(D_SpMM_hbitmap);
-    free(D_SpMM_hbitmapv1);
-    free(D_SpMM_hbitmapv2);
+    // free(D_SpMM_hbitmapv1);
+    // free(D_SpMM_hbitmapv2);
     free(D_SpMM_hbitmapv3);
     PrintPerformance("FlashLLM_v1", milliseconds_SpMM2, tflops_SpMM2, totalError_SpMM2);
     // PrintPerformance("FlashLLM_bitmapv1", milliseconds_SpMM_bitmapv1, tflops_SpMM_bitmapv1, totalError_SpMM_bitmapv1);
