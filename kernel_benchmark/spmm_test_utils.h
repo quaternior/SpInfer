@@ -301,8 +301,6 @@ void PrintPerformance(const char* KernelName, float milliseconds, float tflops, 
 void SavePerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
                         float duration_cublas_tc, float tflops_cublas_tc,
                         float duration_SpMM2, float tflops_SpMM2,
-                        float duration_SpMM_bitmapv1, float tflops_SpMM_bitmapv1,
-                        float duration_SpMM_bitmapv2, float tflops_SpMM_bitmapv2,
                         float duration_SpMM_bitmapv3, float tflops_SpMM_bitmapv3) {
     FILE* fp;
     // Try to open file to check if it exists
@@ -325,19 +323,9 @@ void SavePerformanceData(const char* filename, int M, int K, int N, int SplitK, 
     // Convert milliseconds to nanoseconds
     float duration_cublas_tc_ns = duration_cublas_tc * 1000000;
     float duration_SpMM2_ns = duration_SpMM2 * 1000000;
-    float duration_SpMM_bitmapv1_ns = duration_SpMM_bitmapv1 * 1000000;
-    float duration_SpMM_bitmapv2_ns = duration_SpMM_bitmapv2 * 1000000;
     float duration_SpMM_bitmapv3_ns = duration_SpMM_bitmapv3 * 1000000;
 
     // Write data for each kernel
-    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
-            M, K, N, SplitK, Sparsity, "SpInfer-SpMMV1", 
-            duration_SpMM_bitmapv1_ns, tflops_SpMM_bitmapv1);
-    
-    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
-            M, K, N, SplitK, Sparsity, "SpInfer-SpMMV2", 
-            duration_SpMM_bitmapv2_ns, tflops_SpMM_bitmapv2);
-    
     fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
             M, K, N, SplitK, Sparsity, "SpInfer", 
             duration_SpMM_bitmapv3_ns, tflops_SpMM_bitmapv3);

@@ -756,8 +756,6 @@ int main(int argc, char** argv)
         SPLIT_K, MATRIX_A_PRUNING_PERCENTAGE,
         milliseconds_cublas_tc, tflops_cublas_tc,
         milliseconds_SpMM2, tflops_SpMM2,
-        milliseconds_SpMM_bitmapv1, tflops_SpMM_bitmapv1,
-        milliseconds_SpMM_bitmapv2, tflops_SpMM_bitmapv2,
         milliseconds_SpMM_bitmapv3, tflops_SpMM_bitmapv3);
 
     return 0;
