@@ -16,7 +16,7 @@ for ((i=0; i<${#M[@]}; i++)); do
     for n in "${N[@]}"; do
         for s in "${SPARSITY[@]}"; do
             for sk in "${SPLIT_K[@]}"; do
-                process_test_case $m $k $n $s $sk
+                ./spmm_test_sparta $m $k $n $s $sk
             done
         done
     done
