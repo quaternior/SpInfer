@@ -16,6 +16,7 @@ for ((i=0; i<${#M[@]}; i++)); do
     for n in "${N[@]}"; do
         for s in "${SPARSITY[@]}"; do
             for sk in "${SPLIT_K[@]}"; do
+                echo "Running sparta test case: M=$m, K=$k, N=$n, S=$s, SK=$sk"
                 ./spmm_test_sparta $m $k $n $s $sk
             done
         done

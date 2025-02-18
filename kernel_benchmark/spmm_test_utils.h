@@ -342,8 +342,7 @@ void SavePerformanceData(const char* filename, int M, int K, int N, int SplitK, 
 }
 
 void SaveCuSparsePerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
-                                float duration_CuSparse_ColMajor, float tflops_CuSparse_ColMajor,
-                                float duration_CuSparse_RowMajor, float tflops_CuSparse_RowMajor) {
+                                float duration_CuSparse_ColMajor, float tflops_CuSparse_ColMajor) {
     FILE* fp;
     // Try to open file to check if it exists
     fp = fopen(filename, "r");
@@ -364,13 +363,8 @@ void SaveCuSparsePerformanceData(const char* filename, int M, int K, int N, int 
 
     // Select the better performance between CuSparse Row and Col Major
     float cusparse_duration_ns, cusparse_tflops;
-    if (tflops_CuSparse_RowMajor > tflops_CuSparse_ColMajor) {
-        cusparse_duration_ns = duration_CuSparse_RowMajor * 1000000; // convert to nanoseconds
-        cusparse_tflops = tflops_CuSparse_RowMajor;
-    } else {
-        cusparse_duration_ns = duration_CuSparse_ColMajor * 1000000; // convert to nanoseconds
-        cusparse_tflops = tflops_CuSparse_ColMajor;
-    }
+    cusparse_duration_ns = duration_CuSparse_ColMajor * 1000000; // convert to nanoseconds
+    cusparse_tflops = tflops_CuSparse_ColMajor;
 
     // Write data for cuSPARSE
     fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 

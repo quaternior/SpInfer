@@ -213,146 +213,146 @@ int main(int argc, char** argv)
     cudaFree(csrVal);
     cudaFree(Buffer);
     /////////////////////////////////////////////////////////////////////////////////////////////////
-    printf("Launching CuSparse_RowMajor...\n");
-    half* D_CuSparse_2;
-    cudaMalloc(&D_CuSparse_2, N_GLOBAL * M_GLOBAL * sizeof(half));
-    if (D_CuSparse_2 == NULL) {
-        printf("Error in Test_SpMM_v2.cu: line %d cudaMalloc falied\n", __LINE__);
-        exit(-1);
-    }
-    cudaMemset(D_CuSparse_2, 0.0f, N_GLOBAL * M_GLOBAL * sizeof(half));
-    //
-    cusparseHandle_t sp_handle_2 = 0;
-    cusparseCreate(&sp_handle_2);
-    cusparseSpMatDescr_t SpMatA_2;
-    cusparseDnMatDescr_t DnMatA_2, DnMatB_2, DnMatC_2;
-    // Create Dense Matrix
-    CHECK_CUSPARSE(cusparseCreateDnMat(&DnMatA_2,
-                                       M_GLOBAL,
-                                       K_GLOBAL,
-                                       K_GLOBAL,
-                                       A,
-                                       CUDA_R_16F,
-                                       CUSPARSE_ORDER_ROW))  // Very critical!!! Weight Matrix must be row major,
-                                                             // otherwise causing significant performance problems
+    // printf("Launching CuSparse_RowMajor...\n");
+    // half* D_CuSparse_2;
+    // cudaMalloc(&D_CuSparse_2, N_GLOBAL * M_GLOBAL * sizeof(half));
+    // if (D_CuSparse_2 == NULL) {
+    //     printf("Error in Test_SpMM_v2.cu: line %d cudaMalloc falied\n", __LINE__);
+    //     exit(-1);
+    // }
+    // cudaMemset(D_CuSparse_2, 0.0f, N_GLOBAL * M_GLOBAL * sizeof(half));
+    // //
+    // cusparseHandle_t sp_handle_2 = 0;
+    // cusparseCreate(&sp_handle_2);
+    // cusparseSpMatDescr_t SpMatA_2;
+    // cusparseDnMatDescr_t DnMatA_2, DnMatB_2, DnMatC_2;
+    // // Create Dense Matrix
+    // CHECK_CUSPARSE(cusparseCreateDnMat(&DnMatA_2,
+    //                                    M_GLOBAL,
+    //                                    K_GLOBAL,
+    //                                    K_GLOBAL,
+    //                                    A,
+    //                                    CUDA_R_16F,
+    //                                    CUSPARSE_ORDER_ROW))  // Very critical!!! Weight Matrix must be row major,
+    //                                                          // otherwise causing significant performance problems
 
-    CHECK_CUSPARSE(
-        cusparseCreateDnMat(&DnMatB_2, K_GLOBAL, N_GLOBAL, N_GLOBAL, B_Transposed, CUDA_R_16F, CUSPARSE_ORDER_ROW))
-    CHECK_CUSPARSE(
-        cusparseCreateDnMat(&DnMatC_2, M_GLOBAL, N_GLOBAL, N_GLOBAL, D_CuSparse_2, CUDA_R_16F, CUSPARSE_ORDER_ROW))
-    // Create Sparse Matrix in CSR format
-    int* csrRowPtr_2;
-    cudaMalloc(&csrRowPtr_2, sizeof(int) * (M_GLOBAL + 1));
-    CHECK_CUSPARSE(cusparseCreateCsr(&SpMatA_2,
-                                     M_GLOBAL,
-                                     K_GLOBAL,
-                                     0,
-                                     csrRowPtr_2,
-                                     NULL,
-                                     NULL,
-                                     CUSPARSE_INDEX_32I,
-                                     CUSPARSE_INDEX_32I,
-                                     CUSPARSE_INDEX_BASE_ZERO,
-                                     CUDA_R_16F))
-    // execute Sparse to Dense conversion
-    void*  Buffer_2     = NULL;
-    size_t bufferSize_2 = 0;
-    CHECK_CUSPARSE(cusparseDenseToSparse_bufferSize(
-        sp_handle_2, DnMatA_2, SpMatA_2, CUSPARSE_DENSETOSPARSE_ALG_DEFAULT, &bufferSize_2))
-    cudaMalloc(&Buffer_2, bufferSize_2);
-    CHECK_CUSPARSE(
-        cusparseDenseToSparse_analysis(sp_handle_2, DnMatA_2, SpMatA_2, CUSPARSE_DENSETOSPARSE_ALG_DEFAULT, Buffer_2))
-    //
-    int64_t numRowTMP_2, numColTMP_2, NNZ_2;
-    CHECK_CUSPARSE(cusparseSpMatGetSize(SpMatA_2, &numRowTMP_2, &numColTMP_2, &NNZ_2))
-    //
-    int*  csrColInd_2;
-    half* csrVal_2;
-    cudaMalloc(&csrColInd_2, NNZ_2 * sizeof(int));
-    cudaMalloc(&csrVal_2, NNZ_2 * sizeof(half));
-    //
-    CHECK_CUSPARSE(cusparseCsrSetPointers(SpMatA_2, csrRowPtr_2, csrColInd_2, csrVal_2))
-    CHECK_CUSPARSE(
-        cusparseDenseToSparse_convert(sp_handle_2, DnMatA_2, SpMatA_2, CUSPARSE_DENSETOSPARSE_ALG_DEFAULT, Buffer_2))
-    //
-    cusparseSpMMAlg_t CuSparse_Algorithm_2;
-    CuSparse_Algorithm_2 = CUSPARSE_SPMM_ALG_DEFAULT;
-    CuSparse_Algorithm_2 =
-        CUSPARSE_SPMM_CSR_ALG1;  // csrmm_kernel faster: Provide the best performance with column-major layout
-    CuSparse_Algorithm_2 = CUSPARSE_SPMM_CSR_ALG2;  // csrmm_v2_kernel: Provide the best performance with row-major
-                                                    // layout!!! How about try row major of B&C?
-    // CuSparse_Algorithm_2 = CUSPARSE_SPMM_CSR_ALG3;
-    // printf("CuSparse Algorithm: %d \n", CuSparse_Algorithm_2);
-    CHECK_CUSPARSE(cusparseSpMM_bufferSize(sp_handle_2,
-                                           CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                           CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                           &alpha_float,
-                                           SpMatA_2,
-                                           DnMatB_2,
-                                           &beta_float,
-                                           DnMatC_2,
-                                           CUDA_R_32F,
-                                           CuSparse_Algorithm_2,
-                                           &bufferSize_2))
-    cudaFree(Buffer_2);
-    cudaMalloc(&Buffer_2, bufferSize_2);
-    //
-    for (int i = 0; i < CUSPARSE_ITERATION; i++)
-        CHECK_CUSPARSE(cusparseSpMM(sp_handle_2,
-                                    CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                    CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                    &alpha_float,
-                                    SpMatA_2,
-                                    DnMatB_2,
-                                    &beta_float,
-                                    DnMatC_2,
-                                    CUDA_R_32F,
-                                    CuSparse_Algorithm_2,
-                                    Buffer_2))
-    cudaEventRecord(start);
-    for (int i = 0; i < CUSPARSE_ITERATION; i++)
-        CHECK_CUSPARSE(cusparseSpMM(sp_handle_2,
-                                    CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                    CUSPARSE_OPERATION_NON_TRANSPOSE,
-                                    &alpha_float,
-                                    SpMatA_2,
-                                    DnMatB_2,
-                                    &beta_float,
-                                    DnMatC_2,
-                                    CUDA_R_32F,
-                                    CuSparse_Algorithm_2,
-                                    Buffer_2))
-    cudaEventRecord(stop);
-    //
-    float milliseconds_CuSparse_RowMajor;
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds_CuSparse_RowMajor, start, stop);
-    milliseconds_CuSparse_RowMajor = milliseconds_CuSparse_RowMajor / CUSPARSE_ITERATION;
-    float tflops_CuSparse_RowMajor = static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2)
-                                                         / (milliseconds_CuSparse_RowMajor / 1000.))
-                                     / 1e12;
-    // transpose result to col-major
-    half* D_CuSparse_h_2_row_major;
-    half* D_CuSparse_h_2;
-    D_CuSparse_h_2           = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
-    D_CuSparse_h_2_row_major = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
-    if (D_CuSparse_h_2 == NULL || D_CuSparse_h_2_row_major == NULL) {
-        printf("Error in spmm_test.cu: line %d CPU Malloc falied\n", __LINE__);
-        exit(-1);
-    }
-    cudaMemcpy(D_CuSparse_h_2_row_major,
-               D_CuSparse_2,
-               N_GLOBAL * M_GLOBAL * sizeof(half),
-               cudaMemcpyDeviceToHost);  // row major
-    for (int i = 0; i < N_GLOBAL; i++)
-        for (int j = 0; j < M_GLOBAL; j++)
-            D_CuSparse_h_2[i * M_GLOBAL + j] = D_CuSparse_h_2_row_major[i + j * N_GLOBAL];
-    free(D_CuSparse_h_2_row_major);
-    cudaFree(D_CuSparse_2);
-    cudaFree(csrRowPtr_2);
-    cudaFree(csrColInd_2);
-    cudaFree(csrVal_2);
-    cudaFree(Buffer_2);
+    // CHECK_CUSPARSE(
+    //     cusparseCreateDnMat(&DnMatB_2, K_GLOBAL, N_GLOBAL, N_GLOBAL, B_Transposed, CUDA_R_16F, CUSPARSE_ORDER_ROW))
+    // CHECK_CUSPARSE(
+    //     cusparseCreateDnMat(&DnMatC_2, M_GLOBAL, N_GLOBAL, N_GLOBAL, D_CuSparse_2, CUDA_R_16F, CUSPARSE_ORDER_ROW))
+    // // Create Sparse Matrix in CSR format
+    // int* csrRowPtr_2;
+    // cudaMalloc(&csrRowPtr_2, sizeof(int) * (M_GLOBAL + 1));
+    // CHECK_CUSPARSE(cusparseCreateCsr(&SpMatA_2,
+    //                                  M_GLOBAL,
+    //                                  K_GLOBAL,
+    //                                  0,
+    //                                  csrRowPtr_2,
+    //                                  NULL,
+    //                                  NULL,
+    //                                  CUSPARSE_INDEX_32I,
+    //                                  CUSPARSE_INDEX_32I,
+    //                                  CUSPARSE_INDEX_BASE_ZERO,
+    //                                  CUDA_R_16F))
+    // // execute Sparse to Dense conversion
+    // void*  Buffer_2     = NULL;
+    // size_t bufferSize_2 = 0;
+    // CHECK_CUSPARSE(cusparseDenseToSparse_bufferSize(
+    //     sp_handle_2, DnMatA_2, SpMatA_2, CUSPARSE_DENSETOSPARSE_ALG_DEFAULT, &bufferSize_2))
+    // cudaMalloc(&Buffer_2, bufferSize_2);
+    // CHECK_CUSPARSE(
+    //     cusparseDenseToSparse_analysis(sp_handle_2, DnMatA_2, SpMatA_2, CUSPARSE_DENSETOSPARSE_ALG_DEFAULT, Buffer_2))
+    // //
+    // int64_t numRowTMP_2, numColTMP_2, NNZ_2;
+    // CHECK_CUSPARSE(cusparseSpMatGetSize(SpMatA_2, &numRowTMP_2, &numColTMP_2, &NNZ_2))
+    // //
+    // int*  csrColInd_2;
+    // half* csrVal_2;
+    // cudaMalloc(&csrColInd_2, NNZ_2 * sizeof(int));
+    // cudaMalloc(&csrVal_2, NNZ_2 * sizeof(half));
+    // //
+    // CHECK_CUSPARSE(cusparseCsrSetPointers(SpMatA_2, csrRowPtr_2, csrColInd_2, csrVal_2))
+    // CHECK_CUSPARSE(
+    //     cusparseDenseToSparse_convert(sp_handle_2, DnMatA_2, SpMatA_2, CUSPARSE_DENSETOSPARSE_ALG_DEFAULT, Buffer_2))
+    // //
+    // cusparseSpMMAlg_t CuSparse_Algorithm_2;
+    // CuSparse_Algorithm_2 = CUSPARSE_SPMM_ALG_DEFAULT;
+    // CuSparse_Algorithm_2 =
+    //     CUSPARSE_SPMM_CSR_ALG1;  // csrmm_kernel faster: Provide the best performance with column-major layout
+    // CuSparse_Algorithm_2 = CUSPARSE_SPMM_CSR_ALG2;  // csrmm_v2_kernel: Provide the best performance with row-major
+    //                                                 // layout!!! How about try row major of B&C?
+    // // CuSparse_Algorithm_2 = CUSPARSE_SPMM_CSR_ALG3;
+    // // printf("CuSparse Algorithm: %d \n", CuSparse_Algorithm_2);
+    // CHECK_CUSPARSE(cusparseSpMM_bufferSize(sp_handle_2,
+    //                                        CUSPARSE_OPERATION_NON_TRANSPOSE,
+    //                                        CUSPARSE_OPERATION_NON_TRANSPOSE,
+    //                                        &alpha_float,
+    //                                        SpMatA_2,
+    //                                        DnMatB_2,
+    //                                        &beta_float,
+    //                                        DnMatC_2,
+    //                                        CUDA_R_32F,
+    //                                        CuSparse_Algorithm_2,
+    //                                        &bufferSize_2))
+    // cudaFree(Buffer_2);
+    // cudaMalloc(&Buffer_2, bufferSize_2);
+    // //
+    // for (int i = 0; i < CUSPARSE_ITERATION; i++)
+    //     CHECK_CUSPARSE(cusparseSpMM(sp_handle_2,
+    //                                 CUSPARSE_OPERATION_NON_TRANSPOSE,
+    //                                 CUSPARSE_OPERATION_NON_TRANSPOSE,
+    //                                 &alpha_float,
+    //                                 SpMatA_2,
+    //                                 DnMatB_2,
+    //                                 &beta_float,
+    //                                 DnMatC_2,
+    //                                 CUDA_R_32F,
+    //                                 CuSparse_Algorithm_2,
+    //                                 Buffer_2))
+    // cudaEventRecord(start);
+    // for (int i = 0; i < CUSPARSE_ITERATION; i++)
+    //     CHECK_CUSPARSE(cusparseSpMM(sp_handle_2,
+    //                                 CUSPARSE_OPERATION_NON_TRANSPOSE,
+    //                                 CUSPARSE_OPERATION_NON_TRANSPOSE,
+    //                                 &alpha_float,
+    //                                 SpMatA_2,
+    //                                 DnMatB_2,
+    //                                 &beta_float,
+    //                                 DnMatC_2,
+    //                                 CUDA_R_32F,
+    //                                 CuSparse_Algorithm_2,
+    //                                 Buffer_2))
+    // cudaEventRecord(stop);
+    // //
+    // float milliseconds_CuSparse_RowMajor;
+    // cudaEventSynchronize(stop);
+    // cudaEventElapsedTime(&milliseconds_CuSparse_RowMajor, start, stop);
+    // milliseconds_CuSparse_RowMajor = milliseconds_CuSparse_RowMajor / CUSPARSE_ITERATION;
+    // float tflops_CuSparse_RowMajor = static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2)
+    //                                                      / (milliseconds_CuSparse_RowMajor / 1000.))
+    //                                  / 1e12;
+    // // transpose result to col-major
+    // half* D_CuSparse_h_2_row_major;
+    // half* D_CuSparse_h_2;
+    // D_CuSparse_h_2           = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
+    // D_CuSparse_h_2_row_major = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
+    // if (D_CuSparse_h_2 == NULL || D_CuSparse_h_2_row_major == NULL) {
+    //     printf("Error in spmm_test.cu: line %d CPU Malloc falied\n", __LINE__);
+    //     exit(-1);
+    // }
+    // cudaMemcpy(D_CuSparse_h_2_row_major,
+    //            D_CuSparse_2,
+    //            N_GLOBAL * M_GLOBAL * sizeof(half),
+    //            cudaMemcpyDeviceToHost);  // row major
+    // for (int i = 0; i < N_GLOBAL; i++)
+    //     for (int j = 0; j < M_GLOBAL; j++)
+    //         D_CuSparse_h_2[i * M_GLOBAL + j] = D_CuSparse_h_2_row_major[i + j * N_GLOBAL];
+    // free(D_CuSparse_h_2_row_major);
+    // cudaFree(D_CuSparse_2);
+    // cudaFree(csrRowPtr_2);
+    // cudaFree(csrColInd_2);
+    // cudaFree(csrVal_2);
+    // cudaFree(Buffer_2);
     /////////////////////////////////////////////////////////////////////////////////////////////////
 #endif
 
@@ -369,14 +369,13 @@ int main(int argc, char** argv)
 
 #ifdef USE_CUSPARSE
     PrintPerformance("CuSparse_C", milliseconds_CuSparse_ColMajor, tflops_CuSparse_ColMajor, 0.0);
-    PrintPerformance("CuSparse_R", milliseconds_CuSparse_RowMajor, tflops_CuSparse_RowMajor, 0.0);
+    // PrintPerformance("CuSparse_R", milliseconds_CuSparse_RowMajor, tflops_CuSparse_RowMajor, 0.0);
 #endif
 
     SaveCuSparsePerformanceData("cusparse_performance_results.csv",
         M_GLOBAL, K_GLOBAL, N_GLOBAL, 
         SPLIT_K, MATRIX_A_PRUNING_PERCENTAGE,
-        milliseconds_CuSparse_ColMajor, tflops_CuSparse_ColMajor,
-        milliseconds_CuSparse_RowMajor, tflops_CuSparse_RowMajor);
+        milliseconds_CuSparse_ColMajor, tflops_CuSparse_ColMajor);
 
     free(A_h);
     free(B_h);

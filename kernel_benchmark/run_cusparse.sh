@@ -25,6 +25,7 @@ for ((i=0; i<${#M[@]}; i++)); do
     for n in "${N[@]}"; do
         for s in "${SPARSITY[@]}"; do
             for sk in "${SPLIT_K[@]}"; do
+                echo "Running cusparse test case: M=$m, K=$k, N=$n, S=$s, SK=$sk"
                 ./spmm_test_cusparse $m $k $n $s $sk
             done
         done
