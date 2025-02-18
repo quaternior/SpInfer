@@ -353,6 +353,45 @@ void SavePerformanceData(const char* filename, int M, int K, int N, int SplitK, 
     fclose(fp);
 }
 
+void SaveCuSparsePerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
+                                float duration_CuSparse_ColMajor, float tflops_CuSparse_ColMajor,
+                                float duration_CuSparse_RowMajor, float tflops_CuSparse_RowMajor) {
+    FILE* fp;
+    // Try to open file to check if it exists
+    fp = fopen(filename, "r");
+    bool fileExists = (fp != NULL);
+    if (fp) fclose(fp);
+    
+    // Open file in append mode
+    fp = fopen(filename, "a");
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
+
+    // Write header if file is new
+    if (!fileExists) {
+        fprintf(fp, "M,K,N,SplitK,Sparsity,Kernel,Duration(ns),TFLOPS\n");
+    }
+
+    // Select the better performance between CuSparse Row and Col Major
+    float cusparse_duration_ns, cusparse_tflops;
+    if (tflops_CuSparse_RowMajor > tflops_CuSparse_ColMajor) {
+        cusparse_duration_ns = duration_CuSparse_RowMajor * 1000000; // convert to nanoseconds
+        cusparse_tflops = tflops_CuSparse_RowMajor;
+    } else {
+        cusparse_duration_ns = duration_CuSparse_ColMajor * 1000000; // convert to nanoseconds
+        cusparse_tflops = tflops_CuSparse_ColMajor;
+    }
+
+    // Write data for cuSPARSE
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "cuSPARSE", 
+            cusparse_duration_ns, cusparse_tflops);
+
+    fclose(fp);
+}
+
 std::vector<int> findRemainingValues(int first, int second) {
     std::vector<int> allValues = {3, 2, 1, 0};
     std::vector<int> remainingValues;

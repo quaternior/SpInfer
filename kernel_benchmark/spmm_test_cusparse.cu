@@ -372,6 +372,12 @@ int main(int argc, char** argv)
     PrintPerformance("CuSparse_R", milliseconds_CuSparse_RowMajor, tflops_CuSparse_RowMajor, 0.0);
 #endif
 
+    SaveCuSparsePerformanceData("cusparse_performance_results.csv",
+        M_GLOBAL, K_GLOBAL, N_GLOBAL, 
+        SPLIT_K, MATRIX_A_PRUNING_PERCENTAGE,
+        milliseconds_CuSparse_ColMajor, tflops_CuSparse_ColMajor,
+        milliseconds_CuSparse_RowMajor, tflops_CuSparse_RowMajor);
+
     free(A_h);
     free(B_h);
     free(B_Transposed_h);
