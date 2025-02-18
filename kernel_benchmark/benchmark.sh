@@ -1,8 +1,6 @@
-source run_all_main_res_nsys.sh
-source run_cusparse_nsys.sh
-source run_sparta_4090_nsys.sh
-source run_sputnik_all_4090_nsys.sh
-
-python handle_logcsv.py
+source run_all_main.sh
+source run_cusparse.sh
+source run_sparta_4090.sh
+source run_sputnik_4090.sh
 pip install seaborn
 python draw_fig10.py

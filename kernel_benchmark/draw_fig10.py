@@ -5,10 +5,10 @@ import numpy as np
 
 # 定义文件路径
 files_4090 = [
-    "sputnik_performance_results_all_done.csv",
-    "cusparse_performance_results_done.csv",
-    "spmm_performance_results_main_v2_done.csv",
-    "sparta_performance_results_main_v1_done.csv"
+    "sputnik_performance_results.csv",
+    "cusparse_performance_results.csv",
+    "main_res.csv",
+    "SparTA_performance_results.csv"
 ]
 
 # 定义方法的名称及对应的颜色
