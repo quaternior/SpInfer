@@ -120,7 +120,7 @@ static void SpMM_SplitK_Kernel_Ex_bitmap_v2(cudaStream_t stream,
                               (TilingConfigBitmapV2::TILE_M + PADDING_SHARED_MEM_FOR_C) * TilingConfigBitmapV2::TILE_N * sizeof(float));
     cudaFuncSetAttribute(
         SpMM_Kernel_bitmap_v2<TilingConfigBitmapV2>, cudaFuncAttributeMaxDynamicSharedMemorySize, SHMEM_SZ);
-    printf("Max shared memory size: %d B\n", SHMEM_SZ);
+    // printf("Max shared memory size: %d B\n", SHMEM_SZ);
     int dimN =
         max(N_Global / TilingConfigBitmapV2::TILE_N, 1); 
     int  dimM = M_Global * Split_K / TilingConfigBitmapV2::TILE_M;
