@@ -163,7 +163,10 @@ int main(int argc, char** argv)
 #ifdef USE_SPUTNIK
     PrintPerformance("Sputnik", milliseconds_Sputnik, tflops_Sputnik, 0.0);
 #endif
-
+    SaveSputnikPerformanceData("sputnik_performance_results.csv",
+        M_GLOBAL, K_GLOBAL, N_GLOBAL, 
+        SPLIT_K, MATRIX_A_PRUNING_PERCENTAGE,
+        milliseconds_Sputnik, tflops_Sputnik);
     free(A_h);
     free(B_h);
     free(B_Transposed_h);

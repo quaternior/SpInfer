@@ -123,6 +123,10 @@ int main(int argc, char** argv)
     #endif
     // PrintPerformance("FlashLLM_v2", milliseconds_SpMM, tflops_SpMM, totalError_SpMM);
 // #endif
+    SaveSparTAPerformanceData("SparTA_performance_results.csv",
+        M_GLOBAL, K_GLOBAL, N_GLOBAL, 
+        SPLIT_K, MATRIX_A_PRUNING_PERCENTAGE,
+        milliseconds_sparTA, tflops_sparTA);
     free(A_h);
     free(B_h);
     free(B_Transposed_h);

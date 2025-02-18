@@ -391,7 +391,66 @@ void SaveCuSparsePerformanceData(const char* filename, int M, int K, int N, int 
 
     fclose(fp);
 }
+void SaveSputnikPerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
+                               float duration_Sputnik, float tflops_Sputnik) {
+    FILE* fp;
+    // Try to open file to check if it exists
+    fp = fopen(filename, "r");
+    bool fileExists = (fp != NULL);
+    if (fp) fclose(fp);
+    
+    // Open file in append mode
+    fp = fopen(filename, "a");
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
 
+    // Write header if file is new
+    if (!fileExists) {
+        fprintf(fp, "M,K,N,SplitK,Sparsity,Kernel,Duration(ns),TFLOPS\n");
+    }
+
+    // Convert milliseconds to nanoseconds
+    float sputnik_duration_ns = duration_Sputnik * 1000000;
+
+    // Write data for Sputnik
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "Sputnik", 
+            sputnik_duration_ns, tflops_Sputnik);
+
+    fclose(fp);
+}
+void SaveSparTAPerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
+                              float duration_sparTA, float tflops_sparTA) {
+    FILE* fp;
+    // Try to open file to check if it exists
+    fp = fopen(filename, "r");
+    bool fileExists = (fp != NULL);
+    if (fp) fclose(fp);
+    
+    // Open file in append mode
+    fp = fopen(filename, "a");
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
+
+    // Write header if file is new
+    if (!fileExists) {
+        fprintf(fp, "M,K,N,SplitK,Sparsity,Kernel,Duration(ns),TFLOPS\n");
+    }
+
+    // Convert milliseconds to nanoseconds
+    float sparta_duration_ns = duration_sparTA * 1000000;
+
+    // Write data for sparTA
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "sparTA", 
+            sparta_duration_ns, tflops_sparTA);
+
+    fclose(fp);
+}
 std::vector<int> findRemainingValues(int first, int second) {
     std::vector<int> allValues = {3, 2, 1, 0};
     std::vector<int> remainingValues;
