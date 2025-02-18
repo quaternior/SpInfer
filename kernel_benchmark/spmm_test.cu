@@ -300,7 +300,7 @@ int main(int argc, char** argv)
     printf("Done! Compressed A matrix for bitmap v1 GPU kernel.\n");
     
     printf("Launching bitmapv1 without Ahead of Time Sparse Data Reordering...\n");
-    Split_K = SPLIT_K;
+    auto Split_K = SPLIT_K;
     printf("Split_K = %d\n", Split_K);
     half* Reduction_Workspace_bitmapv1 = NULL;
     cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace_bitmapv1), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
