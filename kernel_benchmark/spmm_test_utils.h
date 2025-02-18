@@ -298,7 +298,60 @@ void PrintPerformance(const char* KernelName, float milliseconds, float tflops, 
            error);
 }
 
+void SavePerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
+                        float duration_cublas_tc, float tflops_cublas_tc,
+                        float duration_SpMM2, float tflops_SpMM2,
+                        float duration_SpMM_bitmapv1, float tflops_SpMM_bitmapv1,
+                        float duration_SpMM_bitmapv2, float tflops_SpMM_bitmapv2,
+                        float duration_SpMM_bitmapv3, float tflops_SpMM_bitmapv3) {
+    FILE* fp;
+    // Try to open file to check if it exists
+    fp = fopen(filename, "r");
+    bool fileExists = (fp != NULL);
+    if (fp) fclose(fp);
+    
+    // Open file in append mode
+    fp = fopen(filename, "a");
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
 
+    // Write header if file is new
+    if (!fileExists) {
+        fprintf(fp, "M,K,N,SplitK,Sparsity,Kernel,Duration(ns),TFLOPS\n");
+    }
+
+    // Convert milliseconds to nanoseconds
+    float duration_cublas_tc_ns = duration_cublas_tc * 1000000;
+    float duration_SpMM2_ns = duration_SpMM2 * 1000000;
+    float duration_SpMM_bitmapv1_ns = duration_SpMM_bitmapv1 * 1000000;
+    float duration_SpMM_bitmapv2_ns = duration_SpMM_bitmapv2 * 1000000;
+    float duration_SpMM_bitmapv3_ns = duration_SpMM_bitmapv3 * 1000000;
+
+    // Write data for each kernel
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "SpInfer-SpMMV1", 
+            duration_SpMM_bitmapv1_ns, tflops_SpMM_bitmapv1);
+    
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "SpInfer-SpMMV2", 
+            duration_SpMM_bitmapv2_ns, tflops_SpMM_bitmapv2);
+    
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "SpInfer", 
+            duration_SpMM_bitmapv3_ns, tflops_SpMM_bitmapv3);
+    
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "cuBLAS_TC", 
+            duration_cublas_tc_ns, tflops_cublas_tc);
+    
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "Flash-LLM", 
+            duration_SpMM2_ns, tflops_SpMM2);
+
+    fclose(fp);
+}
 
 std::vector<int> findRemainingValues(int first, int second) {
     std::vector<int> allValues = {3, 2, 1, 0};
