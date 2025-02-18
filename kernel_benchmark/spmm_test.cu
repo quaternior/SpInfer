@@ -717,20 +717,19 @@ int main(int argc, char** argv)
     cudaFree(Reduction_Workspace);
     /////////////////////////////////////////////////////////////////////////////////////////////////
 
+    double totalError_SpMM2 = 0.0;
+    double totalError_SpMM_bitmapv1 = 0.0;
+    double totalError_SpMM_bitmapv2 = 0.0;
+    double totalError_SpMM_bitmapv3 = 0.0;
 
-
-
-// #ifdef USE_FLASH_LLM
-    double totalError_SpMM2 = ComputeTotalError(D_cublas_h, D_SpMM_h2, M_GLOBAL, N_GLOBAL);
-    // double totalError_SpMM1 = ComputeTotalError(D_cublas_h, D_SpMM_h1, M_GLOBAL, N_GLOBAL);
-    // double totalError_SpMM_bitmap = ComputeTotalError(D_cublas_h, D_SpMM_hbitmap, M_GLOBAL, N_GLOBAL);
-    double totalError_SpMM_bitmapv1 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv1, M_GLOBAL, N_GLOBAL);
-    double totalError_SpMM_bitmapv2 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv2, M_GLOBAL, N_GLOBAL);
-    double totalError_SpMM_bitmapv3 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
-    PrintMismatchV1("bitmapv3", 10, 0.0, D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
-    PrintMatrixVec("bitmapv3", D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL, 16, 16);
-    PrintMatrixVec("cublas", D_cublas_h, M_GLOBAL, N_GLOBAL, 32, 8);
-    PrintMatrixVec("flash", D_SpMM_h2, M_GLOBAL, N_GLOBAL, 32, 8);
+    // double totalError_SpMM2 = ComputeTotalError(D_cublas_h, D_SpMM_h2, M_GLOBAL, N_GLOBAL);
+    // double totalError_SpMM_bitmapv1 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv1, M_GLOBAL, N_GLOBAL);
+    // double totalError_SpMM_bitmapv2 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv2, M_GLOBAL, N_GLOBAL);
+    // double totalError_SpMM_bitmapv3 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
+    // PrintMismatchV1("bitmapv3", 10, 0.0, D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
+    // PrintMatrixVec("bitmapv3", D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL, 16, 16);
+    // PrintMatrixVec("cublas", D_cublas_h, M_GLOBAL, N_GLOBAL, 32, 8);
+    // PrintMatrixVec("flash", D_SpMM_h2, M_GLOBAL, N_GLOBAL, 32, 8);
     
     free(D_SpMM_h2);
     // free(D_SpMM_h1);
@@ -739,14 +738,11 @@ int main(int argc, char** argv)
     free(D_SpMM_hbitmapv2);
     free(D_SpMM_hbitmapv3);
     PrintPerformance("FlashLLM_v1", milliseconds_SpMM2, tflops_SpMM2, totalError_SpMM2);
-    // PrintPerformance("FlashLLM_2vs4", milliseconds_SpMM1, tflops_SpMM1, totalError_SpMM1);
-    // PrintPerformance("FlashLLM_bitmap", milliseconds_SpMM_bitmap, tflops_SpMM_bitmap, totalError_SpMM_bitmap);
     PrintPerformance("FlashLLM_bitmapv1", milliseconds_SpMM_bitmapv1, tflops_SpMM_bitmapv1, totalError_SpMM_bitmapv1);
     PrintPerformance("FlashLLM_bitmapv2", milliseconds_SpMM_bitmapv2, tflops_SpMM_bitmapv2, totalError_SpMM_bitmapv2);
     PrintPerformance("FlashLLM_bitmapv3", milliseconds_SpMM_bitmapv3, tflops_SpMM_bitmapv3, totalError_SpMM_bitmapv3);
     PrintPerformance("CuBlas_TC", milliseconds_cublas_tc, tflops_cublas_tc, 0.0);
     // PrintPerformance("FlashLLM_v2", milliseconds_SpMM, tflops_SpMM, totalError_SpMM);
-// #endif
 
     free(D_cublas_h);
     free(A_h);
