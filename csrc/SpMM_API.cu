@@ -127,8 +127,8 @@ cudaError_t SpMM_SplitK_API_bitmap_v3(cudaStream_t stream,
 
 __host__ int InitSparseMatrixA_bitmap(
     half* A_h,
-    int M,  // 行数
-    int K,  // 列数
+    int M,
+    int K,
     int tile_M,  // 8
     int tile_M_median,  // 16
     int tile_M_global,  // 64
@@ -142,7 +142,7 @@ __host__ int InitSparseMatrixA_bitmap(
     uint64_t** bitmap,
     int& max_nnz_count)
 {
-    // 计算各层的tile数量
+    // Calculate the number of tiles for each layer
     int num_tiles_M = M / tile_M;
     int num_tiles_K = K / tile_K;
     int num_tiles = num_tiles_M * num_tiles_K;
@@ -155,7 +155,7 @@ __host__ int InitSparseMatrixA_bitmap(
     int num_global_tiles_K = K / tile_K_global;
     int num_global_tiles = num_global_tiles_M * num_global_tiles_K;
 
-    // 为各数据结构分配内存
+    // Allocate memory for each data structure
     *Compressed_Val = (half*)malloc(M * K * sizeof(half));
     *TileOffsets = (int*)malloc(num_tiles * sizeof(int));
     *TileOffsets_median = (int*)malloc(num_median_tiles * (tile_M_median / tile_M * tile_K_median / tile_K) * sizeof(int));
@@ -173,7 +173,7 @@ __host__ int InitSparseMatrixA_bitmap(
     std::vector<int> global_val_counts(num_global_tiles + 1, 0);
     max_nnz_count = 0;
 
-    // 遍历所有 global tiles
+    // Traverse all global tiles
     for (int global_tile_m = 0; global_tile_m < num_global_tiles_M; ++global_tile_m) {
         for (int global_tile_k = 0; global_tile_k < num_global_tiles_K; ++global_tile_k) {
             int global_row_start = global_tile_m * tile_M_global;
@@ -181,16 +181,16 @@ __host__ int InitSparseMatrixA_bitmap(
             int global_val_count = 0;
             
             int median_val_count = 0;
-            (*TileOffsets_median)[median_offset_idx++] = 0;  // 每个median tile的起始偏移量为0
-            // 遍历 global tile 内的 median tiles (按行顺序)
+            (*TileOffsets_median)[median_offset_idx++] = 0;  // The starting offset of each median tile is 0
+            // Traverse the median tiles within the global tile (in row order)
             for (int median_tile_m = 0; median_tile_m < tile_M_global / tile_M_median; ++median_tile_m) {
                 for (int median_tile_k = 0; median_tile_k < tile_K_global / tile_K_median; ++median_tile_k) {
                     int median_row_start = global_row_start + median_tile_m * tile_M_median;
                     int median_col_start = global_col_start + median_tile_k * tile_K_median;
-                    // 处理 median tile 内的 2x2 小 tile 组
+                    // Process the 2x2 small tile groups within the median tile
                     for (int local_tile_m_group = 0; local_tile_m_group < tile_M_median / tile_M; local_tile_m_group += 2) {
                         for (int local_tile_k_group = 0; local_tile_k_group < tile_K_median / tile_K; local_tile_k_group += 2) {
-                            // 按列优先处理 2x2 的小 tile 组
+                            // Process the 2x2 small tile groups in column-major order
                             for (int j = 0; j < 2; ++j) {
                                 for (int i = 0; i < 2; ++i) {
                                     int local_tile_k = local_tile_k_group + j;
@@ -202,7 +202,7 @@ __host__ int InitSparseMatrixA_bitmap(
                                     uint64_t tile_bitmap = 0;
                                     int local_val_count = 0;
 
-                                    // 处理小 tile 中的所有元素
+                                    // Process all elements in the small tile
                                     for (int row_offset = 0; row_offset < tile_M; ++row_offset) {
                                         for (int col_offset = 0; col_offset < tile_K; ++col_offset) {
                                             int row = row_start + row_offset;
@@ -229,7 +229,7 @@ __host__ int InitSparseMatrixA_bitmap(
                         }
                     }
                     if(median_tile_m < (tile_M_global / tile_M_median - 1) or median_tile_k < (tile_K_global / tile_K_median - 1)){
-                        // 更新 TileOffsets_median
+                        // Update TileOffsets_median
                         (*TileOffsets_median)[median_offset_idx] = median_val_count;
                         median_offset_idx++;
                     } 
@@ -259,7 +259,7 @@ __host__ int InitSparseMatrixA_bitmap(
         (*TileOffsets_global)[i] = global_val_counts[i];
     }
 
-    // 减少 Compressed_Val 的大小到实际需要的大小
+    // Reduce the size of Compressed_Val to the actually required size
     *Compressed_Val = (half*)realloc(*Compressed_Val, val_count * sizeof(half));
 
     return num_global_tiles;
@@ -311,8 +311,8 @@ extern "C" void Our_GenSparseMatrixBinFile(char* DenseMatrixFileName,
     auto median_tile_numv3 = 4*1;
     auto num_ltilesv3 = num_gtilesv3*local_tile_numv3;
     auto num_mtilesv3 = num_gtilesv3*median_tile_numv3;
-    int val_count_v3 = bitmap_TileOffsets_global_cpu_v3[num_gtilesv3]; // 最后一个 tile 的偏移即为压缩后的非零值总数
-    // 将 max_nnz_intilev3 调整为 64 的倍数
+    int val_count_v3 = bitmap_TileOffsets_global_cpu_v3[num_gtilesv3]; // The offset of the last tile is the total number of non - zero values after compression
+    // Adjust max_nnz_intilev3 to a multiple of 64
     if (max_nnz_intilev3 % 64 != 0) {
         max_nnz_intilev3 = ((max_nnz_intilev3 / 64) + 1) * 64;
     }

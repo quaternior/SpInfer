@@ -111,12 +111,12 @@ __global__ void SpMM_Kernel_bitmap_v3(const half*  A,
     const uint64_t* BitmapTileGlobalPTR =
         bitmap + Tile_Start_Bitmap * K_Global
         + BatchID * AverageNumKBlock * TilingConfig::TILE_BITMAP_K_V3;  // Address for matrix bitmap, taking SplitK into consideration
-// Load 1*16 bitmap to double buffer B shared tile之后
-    CopyTileFromGlobalToShared_Bitmap_1_64<TilingConfig::TILE_BITMAP_M_V3, TilingConfig>(smem_Bitmap, BitmapTileGlobalPTR);  // 将1*64的bitmap加载在double buffer B shared tile之后
+// Load 1*16 bitmap to after double buffer B shared tile
+    CopyTileFromGlobalToShared_Bitmap_1_64<TilingConfig::TILE_BITMAP_M_V3, TilingConfig>(smem_Bitmap, BitmapTileGlobalPTR);  // load 1*64的bitmap after double buffer B shared tile
     CopyTileFromGlobalToShared_Sparse<TilingConfig>(smem, Compressed_A + TileOffsets_ThisBlock[0], NNZ_ThisTile);
     cp_async_group_commit();
 // Load B to shared mem   
-    CopyTileFromGlobalToShared_X_64<TilingConfig::TILE_N2, TilingConfig>(smem_B, BTileGlobalPTR, K_Global); //将B加载到shared mem
+    CopyTileFromGlobalToShared_X_64<TilingConfig::TILE_N2, TilingConfig>(smem_B, BTileGlobalPTR, K_Global);  // Load B into the shared memory
     cp_async_group_commit();
     
 // Initilazing C Matrix to Zeros.
@@ -152,14 +152,14 @@ __global__ void SpMM_Kernel_bitmap_v3(const half*  A,
         // double buffer
         half* __restrict__ smem_write_B_PTR = smem_B;
         half* __restrict__ smem_read_B_PTR  = smem_B;
-        smem_write_B_PTR = smem_B + ((tile_id_k + 1) % 2) * (TILE_K * TilingConfig::TILE_N); //当前B写入的地址
-        smem_read_B_PTR  = smem_B + ((tile_id_k) % 2) * (TILE_K * TilingConfig::TILE_N); //当前读取B的地址
+        smem_write_B_PTR = smem_B + ((tile_id_k + 1) % 2) * (TILE_K * TilingConfig::TILE_N);  // The current write address of B
+        smem_read_B_PTR  = smem_B + ((tile_id_k) % 2) * (TILE_K * TilingConfig::TILE_N);  // The current reading address of B
 
         // COPY indicator
         bool GlobalCopy = (tile_id_k + 1) < NumIter;
         
         // Copying next Bitmap Tile to write shem
-        CopyTileFromGlobalToShared_Bitmap_1_64<TilingConfig::TILE_BITMAP_M_V3, TilingConfig>(smem_Bitmap, BitmapTileGlobalPTR, GlobalCopy);  // 将2*8的bitmap加载在double buffer B shared tile之后
+        CopyTileFromGlobalToShared_Bitmap_1_64<TilingConfig::TILE_BITMAP_M_V3, TilingConfig>(smem_Bitmap, BitmapTileGlobalPTR, GlobalCopy);  // Load the 2*8 bitmap after the double buffer B shared tile
         // Copying next Sparse A Tile to write shem
         CopyTileFromGlobalToShared_Sparse<TilingConfig>(smem, Compressed_A + StartIndex_SparseTiles, NNZ_ThisTile, GlobalCopy);
         cp_async_group_commit();

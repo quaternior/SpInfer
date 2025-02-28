@@ -244,33 +244,32 @@ auto Split_K = SPLIT_K;
     }
     cudaMemset(D_SpMM_bitmapv3, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
 
-    // 定义输出指针
+    // Define the output pointer
     half* Compressed_Val_cpu_v3 = nullptr;
     int* bitmap_TileOffsets_cpu_v3 = nullptr;
     int* bitmap_TileOffsets_median_cpu_v3 = nullptr;
     int* bitmap_TileOffsets_global_cpu_v3 = nullptr;
     uint64_t* bitmap_cpu_v3 = nullptr;
     int max_nnz_intilev3 = 0;
-    // 调用 InitSparseMatrixA_bitmap_v6 函数
+    // Call the InitSparseMatrixA_bitmap_v6 function
     auto num_gtilesv3 = InitSparseMatrixA_bitmap_v6(A_h, M_GLOBAL, K_GLOBAL, 8, 16, 64, 8, 64, 64, &Compressed_Val_cpu_v3, &bitmap_TileOffsets_cpu_v3, &bitmap_TileOffsets_median_cpu_v3, &bitmap_TileOffsets_global_cpu_v3, &bitmap_cpu_v3, max_nnz_intilev3);
     auto local_tile_numv3 = 8*8;
     auto median_tile_numv3 = 4*1;
     auto num_ltilesv3 = num_gtilesv3*local_tile_numv3;
     auto num_mtilesv3 = num_gtilesv3*median_tile_numv3;
-    int val_count_v3 = bitmap_TileOffsets_global_cpu_v3[num_gtilesv3]; // 最后一个 tile 的偏移即为压缩后的非零值总数
-    int val_count_median_v3 = bitmap_TileOffsets_median_cpu_v3[num_mtilesv3]; // 最后一个 tile 的偏移即为压缩后的非零值总数
-    // 将 max_nnz_intilev3 调整为 64 的倍数
+    // The offset of the last tile is equal to the total number of compressed non-zero values
+    int val_count_v3 = bitmap_TileOffsets_global_cpu_v3[num_gtilesv3]; 
+    int val_count_median_v3 = bitmap_TileOffsets_median_cpu_v3[num_mtilesv3];
+    // Adjust max_nnz_intilev3 to a multiple of 64
     if (max_nnz_intilev3 % 64 != 0) {
         max_nnz_intilev3 = ((max_nnz_intilev3 / 64) + 1) * 64;
     }
-
     printf("num_global_tiles: %d, bitmap v3 NNZ: %d, bitmap v3 median layer NNZ: %d,  max_nnz_intilev3: %d \n", num_gtilesv3, val_count_v3, val_count_median_v3, max_nnz_intilev3);
     half* Compressed_Val_gpu_v3 = nullptr;
     int* bitmap_TileOffsets_gpu_v3 = nullptr;
     int* bitmap_TileOffsets_median_gpu_v3 = nullptr;
     int* bitmap_TileOffsets_global_gpu_v3 = nullptr;
     uint64_t* bitmap_gpu_v3 = nullptr;
-
     cudaMalloc(&bitmap_TileOffsets_gpu_v3, sizeof(int) * (num_ltilesv3 + 1)); // for (16*64 tile specific)
     cudaMalloc(&bitmap_gpu_v3, sizeof(uint64_t) * (num_ltilesv3));
     cudaMalloc(&bitmap_TileOffsets_median_gpu_v3, sizeof(int) * (num_mtilesv3));
@@ -462,7 +461,7 @@ auto Split_K = SPLIT_K;
     free(D_SpMM_h2);
     free(D_SpMM_hbitmapv3);
     PrintPerformance("FlashLLM_v1", milliseconds_SpMM2, tflops_SpMM2, totalError_SpMM2);
-    PrintPerformance("FlashLLM_bitmapv3", milliseconds_SpMM_bitmapv3, tflops_SpMM_bitmapv3, totalError_SpMM_bitmapv3);
+    PrintPerformance("SpInfer", milliseconds_SpMM_bitmapv3, tflops_SpMM_bitmapv3, totalError_SpMM_bitmapv3);
     PrintPerformance("CuBlas_TC", milliseconds_cublas_tc, tflops_cublas_tc, 0.0);
 
     free(D_cublas_h);
