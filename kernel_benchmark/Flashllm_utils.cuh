@@ -11,7 +11,7 @@
 #include <vector>
 
 namespace flash_llm_utils {
-
+    
 
 // Fixed Parameters
 #define MMA_M 16
@@ -811,29 +811,29 @@ cudaError_t SpMM_SplitK_API(cudaStream_t stream,
     // Batched SpMM
     switch (N_Global) {
         case 8:
-            SpMM_SplitK_Kernel_Ex<TilingConfig<4, 1, 1, 1>, SparseKernelConfig<64>>(
+            SpMM_SplitK_Kernel_Ex<TilingConfig<4, 1, 1, 1>, SparseKernelConfig<96>>(
                 stream, A, Compressed_A, TileOffsets, B, SpMM_SplitK_OutputPTR, M_Global, N_Global, K_Global, Split_K);
             break;
         case 16:
-            SpMM_SplitK_Kernel_Ex<TilingConfig<4, 1, 1>, SparseKernelConfig<64>>(
+            SpMM_SplitK_Kernel_Ex<TilingConfig<4, 1, 1>, SparseKernelConfig<96>>(
                 stream, A, Compressed_A, TileOffsets, B, SpMM_SplitK_OutputPTR, M_Global, N_Global, K_Global, Split_K);
             break;
         case 32:
-            SpMM_SplitK_Kernel_Ex<TilingConfig<4, 1, 2>, SparseKernelConfig<64>>(
+            SpMM_SplitK_Kernel_Ex<TilingConfig<4, 1, 2>, SparseKernelConfig<96>>(
                 stream, A, Compressed_A, TileOffsets, B, SpMM_SplitK_OutputPTR, M_Global, N_Global, K_Global, Split_K);
             break;
         case 64:
             // return SpMM_SplitK_Kernel_Ex< TilingConfig<4, 1, 4>, SparseKernelConfig<64> >
-            SpMM_SplitK_Kernel_Ex<TilingConfig<2, 2, 2>, SparseKernelConfig<32>>(
+            SpMM_SplitK_Kernel_Ex<TilingConfig<2, 2, 2>, SparseKernelConfig<64>>(
                 stream, A, Compressed_A, TileOffsets, B, SpMM_SplitK_OutputPTR, M_Global, N_Global, K_Global, Split_K);
             break;
         case 128:
-            SpMM_SplitK_Kernel_Ex<TilingConfig<2, 2, 4>, SparseKernelConfig<32>>(
+            SpMM_SplitK_Kernel_Ex<TilingConfig<2, 2, 4>, SparseKernelConfig<64>>(
                 stream, A, Compressed_A, TileOffsets, B, SpMM_SplitK_OutputPTR, M_Global, N_Global, K_Global, Split_K);
             break;
         default:
             if (N_Global % 128 == 0)
-                SpMM_SplitK_Kernel_Ex<TilingConfig<2, 2, 4>, SparseKernelConfig<32>>(stream,
+                SpMM_SplitK_Kernel_Ex<TilingConfig<2, 2, 4>, SparseKernelConfig<64>>(stream,
                                                                                      A,
                                                                                      Compressed_A,
                                                                                      TileOffsets,
