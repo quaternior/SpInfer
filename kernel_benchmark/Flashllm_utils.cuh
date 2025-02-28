@@ -380,6 +380,217 @@ __global__ void SplitK_Reduction(half* C, half* Reduction_Workspace, int M_Globa
     for (int j = 0; j < HALF_PER_128B; j++)
         C_BasePTR_ThisBlock[threadIdx.x * HALF_PER_128B + j] = __float2half_rn(Results[j]);
 }
+
+
+template<typename TilingConfig, typename SparseKernelConfig>
+__global__ void SpMM_Kernel(const half*  A,
+                            const uint4* Compressed_A,
+                            const int*   TileOffsets,
+                            const half*  B,
+                            half*        Reduction_Workspace,
+                            const int    M_Global,
+                            const int    N_Global,
+                            const int    K_Global,
+                            int          Split_K)
+{
+    //
+    const int BatchID     = blockIdx.y / (M_Global / TilingConfig::TILE_M);
+    const int IsLastBatch = (BatchID == (Split_K - 1));
+    const int x           = blockIdx.x;
+    const int y           = blockIdx.y % (M_Global / TilingConfig::TILE_M);
+    //
+    const int NumKBlock        = K_Global / TILE_K;  // assert (K_Global%TILE_K==0);
+    const int AverageNumKBlock = (NumKBlock - 1) / Split_K + 1;
+    const int RoundedKBlock    = AverageNumKBlock * Split_K;
+    const int PaddingKBlock    = RoundedKBlock - NumKBlock;
+    int       NumIter          = 0;
+    if (IsLastBatch)
+        NumIter = AverageNumKBlock - PaddingKBlock;
+    else
+        NumIter = AverageNumKBlock;
+    //
+    const int* TileOffsets_ThisBlock1 = nullptr;
+    const int* TileOffsets_ThisBlock2 = nullptr;
+    if (TilingConfig::TILE_M == 256) {
+        TileOffsets_ThisBlock1 =
+            TileOffsets + K_Global / TILE_K * y * 2
+            + BatchID * AverageNumKBlock;  // Address for matrix A, taking SplitK into consideration
+        TileOffsets_ThisBlock2 =
+            TileOffsets + K_Global / TILE_K * (y * 2 + 1)
+            + BatchID * AverageNumKBlock;  // Address for matrix A, taking SplitK into consideration
+    }
+    else {
+        TileOffsets_ThisBlock1 = TileOffsets + K_Global / TILE_K * y + BatchID * AverageNumKBlock;
+        TileOffsets_ThisBlock2 = TileOffsets_ThisBlock1;  // otherwise will cause problem when passing
+                                                          // TileOffsets_ThisBlock2[0] to SpMM_CopyFromGlobalToReg()
+    }
+    //
+    uint32_t Registers_GlobalToShared[SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL];
+    uint32_t NNZ_ThreadLocal1 = 0;
+    uint32_t NNZ_ThreadLocal2 = 0;
+    //
+    extern __shared__ __align__(128) half smem[];  // at least be 128 Bytes aligned
+    // Warp and lane identification.
+    const unsigned int warpId       = threadIdx.x / WARP_SIZE;
+    const int          Tile_Start_M = y * TilingConfig::TILE_M;
+    const int          Tile_Start_N = x * TilingConfig::TILE_N;
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Compute a grid of C matrix tiles in each warp.
+    int Warp_i         = warpId / TilingConfig::BLOCK_COL_WARPS;
+    int Warp_j         = warpId % TilingConfig::BLOCK_COL_WARPS;
+    int warp_start_row = WARP_ROW_TENSORS * MMA_M * Warp_i;
+    int warp_start_col = TilingConfig::WARP_COL_TENSORS * MMA_N * Warp_j;
+    uint32_t __restrict__ a[WARP_ROW_TENSORS * 2][4];
+    uint32_t __restrict__ b[TilingConfig::WARP_COL_TENSORS * 2][4];
+    // copying B tile from GlobalMemory to SharedMemory
+    const half* BTileGlobalPTR =
+        B + Tile_Start_N * K_Global
+        + BatchID * AverageNumKBlock * TILE_K;  // Address for matrix B, taking SplitK into consideration
+    //
+    int NNZ_ThisTile1 = TileOffsets_ThisBlock1[1] - TileOffsets_ThisBlock1[0];
+    int NNZ_ThisTile2 = 0;
+    if (TilingConfig::TILE_M == 256)
+        NNZ_ThisTile2 = TileOffsets_ThisBlock2[1] - TileOffsets_ThisBlock2[0];
+    // printf("NNZ_ThisTile: %d ", NNZ_ThisTile);
+    //
+    SpMM_CopyFromGlobalToReg<TilingConfig, SparseKernelConfig>(Registers_GlobalToShared,
+                                                               &NNZ_ThreadLocal1,
+                                                               Compressed_A + TileOffsets_ThisBlock1[0],
+                                                               NNZ_ThisTile1,
+                                                               Registers_GlobalToShared
+                                                                   + SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / 2,
+                                                               &NNZ_ThreadLocal2,
+                                                               Compressed_A + TileOffsets_ThisBlock2[0],
+                                                               NNZ_ThisTile2);
+    SpMM_InitSharedMemory<TilingConfig>(smem);
+    cp_async_group_commit();
+    CopyTileFromGlobalToShared_X_64<TilingConfig::TILE_N2, TilingConfig>(
+        smem + TilingConfig::TILE_M * TILE_K, BTileGlobalPTR, K_Global);
+    cp_async_group_commit();
+    // Initilazing C Matrix to Zeros
+    float c[WARP_ROW_TENSORS * TilingConfig::WARP_COL_TENSORS][REG_PER_C_TENSOR_16_16];
+    for (int i = 0; i < WARP_ROW_TENSORS * TilingConfig::WARP_COL_TENSORS; i++)
+        for (int j = 0; j < REG_PER_C_TENSOR_16_16; j++)
+            c[i][j] = 0.0f;
+    //
+    cp_async_wait_group<1>();
+    __syncthreads();
+    SpMM_DecompressFromRegisterToShared<TilingConfig, SparseKernelConfig>(
+        smem,
+        Registers_GlobalToShared,
+        NNZ_ThreadLocal1,
+        smem + TilingConfig::TILE_M * TILE_K / 2,
+        Registers_GlobalToShared + SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / 2,
+        NNZ_ThreadLocal2);
+    //
+    cp_async_wait_group<0>();
+    __syncthreads();
+    // Prefetch to reduce stall_long_sb
+    int StartIndex_SparseTiles_Prefetch1 = TileOffsets_ThisBlock1[0 + 1];
+    int NNZ_ThisTile_Prefetch1           = TileOffsets_ThisBlock1[0 + 2] - TileOffsets_ThisBlock1[0 + 1];
+    int StartIndex_SparseTiles_Prefetch2 = 0;
+    int NNZ_ThisTile_Prefetch2           = 0;
+    if (TilingConfig::TILE_M == 256) {
+        StartIndex_SparseTiles_Prefetch2 = TileOffsets_ThisBlock2[0 + 1];
+        NNZ_ThisTile_Prefetch2           = TileOffsets_ThisBlock2[0 + 2] - TileOffsets_ThisBlock2[0 + 1];
+    }
+// Debug
+// printf("NNZ_ThisTile_Prefetch: %d ", NNZ_ThisTile_Prefetch);
+//
+// Go through the global K dimension by a fixed step at a time.
+// write buffer[1] first, read buffer[0] first
+#pragma unroll(1)
+    for (int tile_id_k = 0; tile_id_k < NumIter; tile_id_k++) {
+        // Using the previous prefetched value
+        int StartIndex_SparseTiles1 = StartIndex_SparseTiles_Prefetch1;
+        int NNZ_ThisTile1           = NNZ_ThisTile_Prefetch1;
+        int StartIndex_SparseTiles2 = 0;
+        int NNZ_ThisTile2           = 0;
+        if (TilingConfig::TILE_M == 256) {
+            StartIndex_SparseTiles2 = StartIndex_SparseTiles_Prefetch2;
+            NNZ_ThisTile2           = NNZ_ThisTile_Prefetch2;
+        }
+        //
+        StartIndex_SparseTiles_Prefetch1 = TileOffsets_ThisBlock1[tile_id_k + 1 + 1];
+        NNZ_ThisTile_Prefetch1 = TileOffsets_ThisBlock1[tile_id_k + 1 + 2] - TileOffsets_ThisBlock1[tile_id_k + 1 + 1];
+        if (TilingConfig::TILE_M == 256) {
+            StartIndex_SparseTiles_Prefetch2 = TileOffsets_ThisBlock2[tile_id_k + 1 + 1];
+            NNZ_ThisTile_Prefetch2 =
+                TileOffsets_ThisBlock2[tile_id_k + 1 + 2] - TileOffsets_ThisBlock2[tile_id_k + 1 + 1];
+        }
+        // copying B tile from GlobalMemory to SharedMemory
+        BTileGlobalPTR = B + Tile_Start_N * K_Global + BatchID * AverageNumKBlock * TILE_K + ((tile_id_k + 1) * TILE_K);
+        // double buffer
+        half* __restrict__ smem_write_PTR = smem;
+        half* __restrict__ smem_read_PTR  = smem;
+        smem_write_PTR = smem + ((tile_id_k + 1) % 2) * (TilingConfig::TILE_M * TILE_K + TILE_K * TilingConfig::TILE_N);
+        smem_read_PTR  = smem + ((tile_id_k) % 2) * (TilingConfig::TILE_M * TILE_K + TILE_K * TilingConfig::TILE_N);
+        //
+        bool GlobalCopy = (tile_id_k + 1) < NumIter;
+
+        SpMM_InitSharedMemory<TilingConfig>(smem_write_PTR);
+        cp_async_group_commit();
+        SpMM_CopyFromGlobalToReg<TilingConfig, SparseKernelConfig>(
+            Registers_GlobalToShared,
+            &NNZ_ThreadLocal1,
+            Compressed_A + StartIndex_SparseTiles1,
+            NNZ_ThisTile1,
+            Registers_GlobalToShared + SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / 2,
+            &NNZ_ThreadLocal2,
+            Compressed_A + StartIndex_SparseTiles2,
+            NNZ_ThisTile2);
+
+        // Copying B Tile
+        CopyTileFromGlobalToShared_X_64<TilingConfig::TILE_N2, TilingConfig>(
+            smem_write_PTR + TilingConfig::TILE_M * TILE_K, BTileGlobalPTR, K_Global, GlobalCopy);
+        cp_async_group_commit();
+
+        // only used for kernel pipeline analysis
+        // SpMM_CopyFromGlobalToShared<TilingConfig, SparseKernelConfig>
+        //               ( threadIdx.x,
+        //                 smem_write_PTR,
+        //                 Registers_GlobalToShared,
+        //                 &NNZ_ThreadLocal1,
+        //                 Compressed_A+StartIndex_SparseTiles1,
+        //                 NNZ_ThisTile1,
+        //                 Registers_GlobalToShared+SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL/2,
+        //                 &NNZ_ThreadLocal2,
+        //                 Compressed_A+StartIndex_SparseTiles2,
+        //                 NNZ_ThisTile2);
+
+        PipelinedCoreComputations<TilingConfig>(c, a, b, smem_read_PTR, warp_start_row, warp_start_col);
+        //
+
+        cp_async_wait_group<1>();
+        __syncthreads();  // Sync to ensure the completion of stage 2, but the asyncopy of Tile_B may not finished yet
+        SpMM_DecompressFromRegisterToShared<TilingConfig, SparseKernelConfig>(
+            smem_write_PTR,
+            Registers_GlobalToShared,
+            NNZ_ThreadLocal1,
+            smem_write_PTR + TilingConfig::TILE_M * TILE_K / 2,
+            Registers_GlobalToShared + SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / 2,
+            NNZ_ThreadLocal2);
+        cp_async_wait_group<0>();  // Sync to ensure the completion of Loading B to shared memory
+        __syncthreads();
+    }
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Store the C fragments to shared memory.
+    float(*smem_CFrag)[TilingConfig::TILE_M + PADDING_SHARED_MEM_FOR_C] =
+        reinterpret_cast<float(*)[TilingConfig::TILE_M + PADDING_SHARED_MEM_FOR_C]>(smem);
+    StoreToSharedMemoryFromRegister<TilingConfig>(smem_CFrag, c);
+    __syncthreads();
+    // Now that shared memory contains all the D tiles, stream them to global memory.
+    half* BlockGlobalPTR =
+        Reduction_Workspace + BatchID * (M_Global * N_Global) + Tile_Start_M + Tile_Start_N * M_Global;
+#pragma unroll
+    for (int i = warpId; i < TilingConfig::TILE_N2; i += TilingConfig::BLOCK_WARPS)  // i-th column
+#pragma unroll
+        for (int j = threadIdx.x % WARP_SIZE; j < TilingConfig::TILE_M; j += WARP_SIZE)  // j-th row
+            BlockGlobalPTR[j + i * M_Global] = __float2half_rn((*(smem_CFrag + i))[j]);
+}
+
 template<typename TilingConfig, typename SparseKernelConfig>
 static void SpMM_SplitK_Kernel_Ex(cudaStream_t stream,
                                   const half*  A,
@@ -1075,215 +1286,6 @@ __device__ __forceinline__ void SpMM_DecompressFromRegisterToShared(half* __rest
                     SharedPTR2[index] = value;
                 }
     }
-}
-
-template<typename TilingConfig, typename SparseKernelConfig>
-__global__ void SpMM_Kernel(const half*  A,
-                            const uint4* Compressed_A,
-                            const int*   TileOffsets,
-                            const half*  B,
-                            half*        Reduction_Workspace,
-                            const int    M_Global,
-                            const int    N_Global,
-                            const int    K_Global,
-                            int          Split_K)
-{
-    //
-    const int BatchID     = blockIdx.y / (M_Global / TilingConfig::TILE_M);
-    const int IsLastBatch = (BatchID == (Split_K - 1));
-    const int x           = blockIdx.x;
-    const int y           = blockIdx.y % (M_Global / TilingConfig::TILE_M);
-    //
-    const int NumKBlock        = K_Global / TILE_K;  // assert (K_Global%TILE_K==0);
-    const int AverageNumKBlock = (NumKBlock - 1) / Split_K + 1;
-    const int RoundedKBlock    = AverageNumKBlock * Split_K;
-    const int PaddingKBlock    = RoundedKBlock - NumKBlock;
-    int       NumIter          = 0;
-    if (IsLastBatch)
-        NumIter = AverageNumKBlock - PaddingKBlock;
-    else
-        NumIter = AverageNumKBlock;
-    //
-    const int* TileOffsets_ThisBlock1 = nullptr;
-    const int* TileOffsets_ThisBlock2 = nullptr;
-    if (TilingConfig::TILE_M == 256) {
-        TileOffsets_ThisBlock1 =
-            TileOffsets + K_Global / TILE_K * y * 2
-            + BatchID * AverageNumKBlock;  // Address for matrix A, taking SplitK into consideration
-        TileOffsets_ThisBlock2 =
-            TileOffsets + K_Global / TILE_K * (y * 2 + 1)
-            + BatchID * AverageNumKBlock;  // Address for matrix A, taking SplitK into consideration
-    }
-    else {
-        TileOffsets_ThisBlock1 = TileOffsets + K_Global / TILE_K * y + BatchID * AverageNumKBlock;
-        TileOffsets_ThisBlock2 = TileOffsets_ThisBlock1;  // otherwise will cause problem when passing
-                                                          // TileOffsets_ThisBlock2[0] to SpMM_CopyFromGlobalToReg()
-    }
-    //
-    uint32_t Registers_GlobalToShared[SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL];
-    uint32_t NNZ_ThreadLocal1 = 0;
-    uint32_t NNZ_ThreadLocal2 = 0;
-    //
-    extern __shared__ __align__(128) half smem[];  // at least be 128 Bytes aligned
-    // Warp and lane identification.
-    const unsigned int warpId       = threadIdx.x / WARP_SIZE;
-    const int          Tile_Start_M = y * TilingConfig::TILE_M;
-    const int          Tile_Start_N = x * TilingConfig::TILE_N;
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Compute a grid of C matrix tiles in each warp.
-    int Warp_i         = warpId / TilingConfig::BLOCK_COL_WARPS;
-    int Warp_j         = warpId % TilingConfig::BLOCK_COL_WARPS;
-    int warp_start_row = WARP_ROW_TENSORS * MMA_M * Warp_i;
-    int warp_start_col = TilingConfig::WARP_COL_TENSORS * MMA_N * Warp_j;
-    uint32_t __restrict__ a[WARP_ROW_TENSORS * 2][4];
-    uint32_t __restrict__ b[TilingConfig::WARP_COL_TENSORS * 2][4];
-    // copying B tile from GlobalMemory to SharedMemory
-    const half* BTileGlobalPTR =
-        B + Tile_Start_N * K_Global
-        + BatchID * AverageNumKBlock * TILE_K;  // Address for matrix B, taking SplitK into consideration
-    //
-    int NNZ_ThisTile1 = TileOffsets_ThisBlock1[1] - TileOffsets_ThisBlock1[0];
-    int NNZ_ThisTile2 = 0;
-    if (TilingConfig::TILE_M == 256)
-        NNZ_ThisTile2 = TileOffsets_ThisBlock2[1] - TileOffsets_ThisBlock2[0];
-    // printf("NNZ_ThisTile: %d ", NNZ_ThisTile);
-    //
-    SpMM_CopyFromGlobalToReg<TilingConfig, SparseKernelConfig>(Registers_GlobalToShared,
-                                                               &NNZ_ThreadLocal1,
-                                                               Compressed_A + TileOffsets_ThisBlock1[0],
-                                                               NNZ_ThisTile1,
-                                                               Registers_GlobalToShared
-                                                                   + SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / 2,
-                                                               &NNZ_ThreadLocal2,
-                                                               Compressed_A + TileOffsets_ThisBlock2[0],
-                                                               NNZ_ThisTile2);
-    SpMM_InitSharedMemory<TilingConfig>(smem);
-    cp_async_group_commit();
-    CopyTileFromGlobalToShared_X_64<TilingConfig::TILE_N2, TilingConfig>(
-        smem + TilingConfig::TILE_M * TILE_K, BTileGlobalPTR, K_Global);
-    cp_async_group_commit();
-    // Initilazing C Matrix to Zeros
-    float c[WARP_ROW_TENSORS * TilingConfig::WARP_COL_TENSORS][REG_PER_C_TENSOR_16_16];
-    for (int i = 0; i < WARP_ROW_TENSORS * TilingConfig::WARP_COL_TENSORS; i++)
-        for (int j = 0; j < REG_PER_C_TENSOR_16_16; j++)
-            c[i][j] = 0.0f;
-    //
-    cp_async_wait_group<1>();
-    __syncthreads();
-    SpMM_DecompressFromRegisterToShared<TilingConfig, SparseKernelConfig>(
-        smem,
-        Registers_GlobalToShared,
-        NNZ_ThreadLocal1,
-        smem + TilingConfig::TILE_M * TILE_K / 2,
-        Registers_GlobalToShared + SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / 2,
-        NNZ_ThreadLocal2);
-    //
-    cp_async_wait_group<0>();
-    __syncthreads();
-    // Prefetch to reduce stall_long_sb
-    int StartIndex_SparseTiles_Prefetch1 = TileOffsets_ThisBlock1[0 + 1];
-    int NNZ_ThisTile_Prefetch1           = TileOffsets_ThisBlock1[0 + 2] - TileOffsets_ThisBlock1[0 + 1];
-    int StartIndex_SparseTiles_Prefetch2 = 0;
-    int NNZ_ThisTile_Prefetch2           = 0;
-    if (TilingConfig::TILE_M == 256) {
-        StartIndex_SparseTiles_Prefetch2 = TileOffsets_ThisBlock2[0 + 1];
-        NNZ_ThisTile_Prefetch2           = TileOffsets_ThisBlock2[0 + 2] - TileOffsets_ThisBlock2[0 + 1];
-    }
-// Debug
-// printf("NNZ_ThisTile_Prefetch: %d ", NNZ_ThisTile_Prefetch);
-//
-// Go through the global K dimension by a fixed step at a time.
-// write buffer[1] first, read buffer[0] first
-#pragma unroll(1)
-    for (int tile_id_k = 0; tile_id_k < NumIter; tile_id_k++) {
-        // Using the previous prefetched value
-        int StartIndex_SparseTiles1 = StartIndex_SparseTiles_Prefetch1;
-        int NNZ_ThisTile1           = NNZ_ThisTile_Prefetch1;
-        int StartIndex_SparseTiles2 = 0;
-        int NNZ_ThisTile2           = 0;
-        if (TilingConfig::TILE_M == 256) {
-            StartIndex_SparseTiles2 = StartIndex_SparseTiles_Prefetch2;
-            NNZ_ThisTile2           = NNZ_ThisTile_Prefetch2;
-        }
-        //
-        StartIndex_SparseTiles_Prefetch1 = TileOffsets_ThisBlock1[tile_id_k + 1 + 1];
-        NNZ_ThisTile_Prefetch1 = TileOffsets_ThisBlock1[tile_id_k + 1 + 2] - TileOffsets_ThisBlock1[tile_id_k + 1 + 1];
-        if (TilingConfig::TILE_M == 256) {
-            StartIndex_SparseTiles_Prefetch2 = TileOffsets_ThisBlock2[tile_id_k + 1 + 1];
-            NNZ_ThisTile_Prefetch2 =
-                TileOffsets_ThisBlock2[tile_id_k + 1 + 2] - TileOffsets_ThisBlock2[tile_id_k + 1 + 1];
-        }
-        // copying B tile from GlobalMemory to SharedMemory
-        BTileGlobalPTR = B + Tile_Start_N * K_Global + BatchID * AverageNumKBlock * TILE_K + ((tile_id_k + 1) * TILE_K);
-        // double buffer
-        half* __restrict__ smem_write_PTR = smem;
-        half* __restrict__ smem_read_PTR  = smem;
-        smem_write_PTR = smem + ((tile_id_k + 1) % 2) * (TilingConfig::TILE_M * TILE_K + TILE_K * TilingConfig::TILE_N);
-        smem_read_PTR  = smem + ((tile_id_k) % 2) * (TilingConfig::TILE_M * TILE_K + TILE_K * TilingConfig::TILE_N);
-        //
-        bool GlobalCopy = (tile_id_k + 1) < NumIter;
-
-        SpMM_InitSharedMemory<TilingConfig>(smem_write_PTR);
-        cp_async_group_commit();
-        SpMM_CopyFromGlobalToReg<TilingConfig, SparseKernelConfig>(
-            Registers_GlobalToShared,
-            &NNZ_ThreadLocal1,
-            Compressed_A + StartIndex_SparseTiles1,
-            NNZ_ThisTile1,
-            Registers_GlobalToShared + SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / 2,
-            &NNZ_ThreadLocal2,
-            Compressed_A + StartIndex_SparseTiles2,
-            NNZ_ThisTile2);
-
-        // Copying B Tile
-        CopyTileFromGlobalToShared_X_64<TilingConfig::TILE_N2, TilingConfig>(
-            smem_write_PTR + TilingConfig::TILE_M * TILE_K, BTileGlobalPTR, K_Global, GlobalCopy);
-        cp_async_group_commit();
-
-        // only used for kernel pipeline analysis
-        // SpMM_CopyFromGlobalToShared<TilingConfig, SparseKernelConfig>
-        //               ( threadIdx.x,
-        //                 smem_write_PTR,
-        //                 Registers_GlobalToShared,
-        //                 &NNZ_ThreadLocal1,
-        //                 Compressed_A+StartIndex_SparseTiles1,
-        //                 NNZ_ThisTile1,
-        //                 Registers_GlobalToShared+SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL/2,
-        //                 &NNZ_ThreadLocal2,
-        //                 Compressed_A+StartIndex_SparseTiles2,
-        //                 NNZ_ThisTile2);
-
-        PipelinedCoreComputations<TilingConfig>(c, a, b, smem_read_PTR, warp_start_row, warp_start_col);
-        //
-
-        cp_async_wait_group<1>();
-        __syncthreads();  // Sync to ensure the completion of stage 2, but the asyncopy of Tile_B may not finished yet
-        SpMM_DecompressFromRegisterToShared<TilingConfig, SparseKernelConfig>(
-            smem_write_PTR,
-            Registers_GlobalToShared,
-            NNZ_ThreadLocal1,
-            smem_write_PTR + TilingConfig::TILE_M * TILE_K / 2,
-            Registers_GlobalToShared + SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / 2,
-            NNZ_ThreadLocal2);
-        cp_async_wait_group<0>();  // Sync to ensure the completion of Loading B to shared memory
-        __syncthreads();
-    }
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Store the C fragments to shared memory.
-    float(*smem_CFrag)[TilingConfig::TILE_M + PADDING_SHARED_MEM_FOR_C] =
-        reinterpret_cast<float(*)[TilingConfig::TILE_M + PADDING_SHARED_MEM_FOR_C]>(smem);
-    StoreToSharedMemoryFromRegister<TilingConfig>(smem_CFrag, c);
-    __syncthreads();
-    // Now that shared memory contains all the D tiles, stream them to global memory.
-    half* BlockGlobalPTR =
-        Reduction_Workspace + BatchID * (M_Global * N_Global) + Tile_Start_M + Tile_Start_N * M_Global;
-#pragma unroll
-    for (int i = warpId; i < TilingConfig::TILE_N2; i += TilingConfig::BLOCK_WARPS)  // i-th column
-#pragma unroll
-        for (int j = threadIdx.x % WARP_SIZE; j < TilingConfig::TILE_M; j += WARP_SIZE)  // j-th row
-            BlockGlobalPTR[j + i * M_Global] = __float2half_rn((*(smem_CFrag + i))[j]);
 }
 
 #endif
