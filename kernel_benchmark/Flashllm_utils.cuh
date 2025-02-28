@@ -381,6 +381,102 @@ __global__ void SplitK_Reduction(half* C, half* Reduction_Workspace, int M_Globa
         C_BasePTR_ThisBlock[threadIdx.x * HALF_PER_128B + j] = __float2half_rn(Results[j]);
 }
 
+template<typename TilingConfig, typename SparseKernelConfig>
+__device__ __forceinline__ void SpMM_CopyFromGlobalToReg(uint32_t*    Registers_GlobalToShared1,
+                                                         uint32_t*    NNZ_VECTOR_ThreadLocal1,
+                                                         const uint4* GlobalPTR1,
+                                                         int          NNZ_VECTOR_ThisTile1,
+                                                         uint32_t*    Registers_GlobalToShared2,
+                                                         uint32_t*    NNZ_VECTOR_ThreadLocal2,
+                                                         const uint4* GlobalPTR2,
+                                                         int          NNZ_VECTOR_ThisTile2)
+{
+    // Load Global to registers
+    int Num_NNZ_Vector1 = NNZ_VECTOR_ThisTile1 / (WARP_SIZE * TilingConfig::BLOCK_WARPS);
+    if (threadIdx.x < (NNZ_VECTOR_ThisTile1 % (WARP_SIZE * TilingConfig::BLOCK_WARPS)))
+        Num_NNZ_Vector1++;
+    *NNZ_VECTOR_ThreadLocal1 = Num_NNZ_Vector1;
+    if (TilingConfig::TILE_M == 256) {
+        int Num_NNZ_Vector2 = NNZ_VECTOR_ThisTile2 / (WARP_SIZE * TilingConfig::BLOCK_WARPS);
+        if (threadIdx.x < (NNZ_VECTOR_ThisTile2 % (WARP_SIZE * TilingConfig::BLOCK_WARPS)))
+            Num_NNZ_Vector2++;
+        *NNZ_VECTOR_ThreadLocal2 = Num_NNZ_Vector2;
+    }
+    //
+    int Max_NNZ_VECTOR_ThisTile =
+        (TilingConfig::TILE_M == 256) ? max(NNZ_VECTOR_ThisTile1, NNZ_VECTOR_ThisTile2) : NNZ_VECTOR_ThisTile1;
+#pragma unroll
+    for (int i = 0; i < SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / SparseKernelConfig::VECTOR_SIZE; i++) {
+        int index = threadIdx.x + i * (WARP_SIZE * (TilingConfig::BLOCK_WARPS));
+        if (index >= Max_NNZ_VECTOR_ThisTile)
+            break;
+        if (index < NNZ_VECTOR_ThisTile1
+            || TilingConfig::TILE_M != 256)  // if TILE_M!=256, not need to compare since we have break();
+        {
+            Registers_GlobalToShared1[i * 4 + 0] = GlobalPTR1[index].x;
+            Registers_GlobalToShared1[i * 4 + 1] = GlobalPTR1[index].y;
+            Registers_GlobalToShared1[i * 4 + 2] = GlobalPTR1[index].z;
+            Registers_GlobalToShared1[i * 4 + 3] = GlobalPTR1[index].w;
+        }
+        if (TilingConfig::TILE_M == 256)
+            if (index < NNZ_VECTOR_ThisTile2) {
+                Registers_GlobalToShared2[i * 4 + 0] = GlobalPTR2[index].x;
+                Registers_GlobalToShared2[i * 4 + 1] = GlobalPTR2[index].y;
+                Registers_GlobalToShared2[i * 4 + 2] = GlobalPTR2[index].z;
+                Registers_GlobalToShared2[i * 4 + 3] = GlobalPTR2[index].w;
+            }
+    }
+}
+
+// Only used for kernel pipeline analysis, to make sure the global load for sparse encoding is not optimied by NVCC, we
+// have to store the data loaded from GMem stored in SMem
+template<typename TilingConfig, typename SparseKernelConfig>
+__device__ __forceinline__ void SpMM_CopyFromGlobalToShared(int          tid,
+                                                            half*        smem,
+                                                            uint32_t*    Registers_GlobalToShared1,
+                                                            uint32_t*    NNZ_VECTOR_ThreadLocal1,
+                                                            const uint4* GlobalPTR1,
+                                                            int          NNZ_VECTOR_ThisTile1,
+                                                            uint32_t*    Registers_GlobalToShared2,
+                                                            uint32_t*    NNZ_VECTOR_ThreadLocal2,
+                                                            const uint4* GlobalPTR2,
+                                                            int          NNZ_VECTOR_ThisTile2)
+{
+    uint32_t*    smem_int_ptr = reinterpret_cast<uint32_t*>(smem);
+    unsigned int tmp1         = 0;
+    unsigned int tmp2         = 0;
+    // Load Global to registers
+    int Num_NNZ_Vector1 = NNZ_VECTOR_ThisTile1 / (WARP_SIZE * TilingConfig::BLOCK_WARPS);
+    if (threadIdx.x < (NNZ_VECTOR_ThisTile1 % (WARP_SIZE * TilingConfig::BLOCK_WARPS)))
+        Num_NNZ_Vector1++;
+    *NNZ_VECTOR_ThreadLocal1 = Num_NNZ_Vector1;
+    if (TilingConfig::TILE_M == 256) {
+        int Num_NNZ_Vector2 = NNZ_VECTOR_ThisTile2 / (WARP_SIZE * TilingConfig::BLOCK_WARPS);
+        if (threadIdx.x < (NNZ_VECTOR_ThisTile2 % (WARP_SIZE * TilingConfig::BLOCK_WARPS)))
+            Num_NNZ_Vector2++;
+        *NNZ_VECTOR_ThreadLocal2 = Num_NNZ_Vector2;
+    }
+    //
+    int Max_NNZ_VECTOR_ThisTile =
+        (TilingConfig::TILE_M == 256) ? max(NNZ_VECTOR_ThisTile1, NNZ_VECTOR_ThisTile2) : NNZ_VECTOR_ThisTile1;
+#pragma unroll
+    for (int i = 0; i < SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / SparseKernelConfig::VECTOR_SIZE; i++) {
+        int index = threadIdx.x + i * (WARP_SIZE * (TilingConfig::BLOCK_WARPS));
+        if (index >= Max_NNZ_VECTOR_ThisTile)
+            break;
+        if (index < NNZ_VECTOR_ThisTile1
+            || TilingConfig::TILE_M != 256)  // if TILE_M!=256, not need to compare since we have break();
+        {
+            tmp1 = GlobalPTR1[index].x + GlobalPTR1[index].y + GlobalPTR1[index].z + GlobalPTR1[index].w;
+        }
+        if (TilingConfig::TILE_M == 256)
+            if (index < NNZ_VECTOR_ThisTile2) {
+                tmp2 = GlobalPTR2[index].x + GlobalPTR2[index].y + GlobalPTR2[index].z + GlobalPTR2[index].w;
+            }
+    }
+    smem_int_ptr[tid] = tmp1 + tmp2;
+}
+
 
 template<typename TilingConfig, typename SparseKernelConfig>
 __global__ void SpMM_Kernel(const half*  A,
@@ -1126,101 +1222,7 @@ extern "C" void GenSparseMatrixBinFile(char* DenseMatrixFileName,
     out_TileOffsetsFile.close();
 }
 
-template<typename TilingConfig, typename SparseKernelConfig>
-__device__ __forceinline__ void SpMM_CopyFromGlobalToReg(uint32_t*    Registers_GlobalToShared1,
-                                                         uint32_t*    NNZ_VECTOR_ThreadLocal1,
-                                                         const uint4* GlobalPTR1,
-                                                         int          NNZ_VECTOR_ThisTile1,
-                                                         uint32_t*    Registers_GlobalToShared2,
-                                                         uint32_t*    NNZ_VECTOR_ThreadLocal2,
-                                                         const uint4* GlobalPTR2,
-                                                         int          NNZ_VECTOR_ThisTile2)
-{
-    // Load Global to registers
-    int Num_NNZ_Vector1 = NNZ_VECTOR_ThisTile1 / (WARP_SIZE * TilingConfig::BLOCK_WARPS);
-    if (threadIdx.x < (NNZ_VECTOR_ThisTile1 % (WARP_SIZE * TilingConfig::BLOCK_WARPS)))
-        Num_NNZ_Vector1++;
-    *NNZ_VECTOR_ThreadLocal1 = Num_NNZ_Vector1;
-    if (TilingConfig::TILE_M == 256) {
-        int Num_NNZ_Vector2 = NNZ_VECTOR_ThisTile2 / (WARP_SIZE * TilingConfig::BLOCK_WARPS);
-        if (threadIdx.x < (NNZ_VECTOR_ThisTile2 % (WARP_SIZE * TilingConfig::BLOCK_WARPS)))
-            Num_NNZ_Vector2++;
-        *NNZ_VECTOR_ThreadLocal2 = Num_NNZ_Vector2;
-    }
-    //
-    int Max_NNZ_VECTOR_ThisTile =
-        (TilingConfig::TILE_M == 256) ? max(NNZ_VECTOR_ThisTile1, NNZ_VECTOR_ThisTile2) : NNZ_VECTOR_ThisTile1;
-#pragma unroll
-    for (int i = 0; i < SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / SparseKernelConfig::VECTOR_SIZE; i++) {
-        int index = threadIdx.x + i * (WARP_SIZE * (TilingConfig::BLOCK_WARPS));
-        if (index >= Max_NNZ_VECTOR_ThisTile)
-            break;
-        if (index < NNZ_VECTOR_ThisTile1
-            || TilingConfig::TILE_M != 256)  // if TILE_M!=256, not need to compare since we have break();
-        {
-            Registers_GlobalToShared1[i * 4 + 0] = GlobalPTR1[index].x;
-            Registers_GlobalToShared1[i * 4 + 1] = GlobalPTR1[index].y;
-            Registers_GlobalToShared1[i * 4 + 2] = GlobalPTR1[index].z;
-            Registers_GlobalToShared1[i * 4 + 3] = GlobalPTR1[index].w;
-        }
-        if (TilingConfig::TILE_M == 256)
-            if (index < NNZ_VECTOR_ThisTile2) {
-                Registers_GlobalToShared2[i * 4 + 0] = GlobalPTR2[index].x;
-                Registers_GlobalToShared2[i * 4 + 1] = GlobalPTR2[index].y;
-                Registers_GlobalToShared2[i * 4 + 2] = GlobalPTR2[index].z;
-                Registers_GlobalToShared2[i * 4 + 3] = GlobalPTR2[index].w;
-            }
-    }
-}
 
-// Only used for kernel pipeline analysis, to make sure the global load for sparse encoding is not optimied by NVCC, we
-// have to store the data loaded from GMem stored in SMem
-template<typename TilingConfig, typename SparseKernelConfig>
-__device__ __forceinline__ void SpMM_CopyFromGlobalToShared(int          tid,
-                                                            half*        smem,
-                                                            uint32_t*    Registers_GlobalToShared1,
-                                                            uint32_t*    NNZ_VECTOR_ThreadLocal1,
-                                                            const uint4* GlobalPTR1,
-                                                            int          NNZ_VECTOR_ThisTile1,
-                                                            uint32_t*    Registers_GlobalToShared2,
-                                                            uint32_t*    NNZ_VECTOR_ThreadLocal2,
-                                                            const uint4* GlobalPTR2,
-                                                            int          NNZ_VECTOR_ThisTile2)
-{
-    uint32_t*    smem_int_ptr = reinterpret_cast<uint32_t*>(smem);
-    unsigned int tmp1         = 0;
-    unsigned int tmp2         = 0;
-    // Load Global to registers
-    int Num_NNZ_Vector1 = NNZ_VECTOR_ThisTile1 / (WARP_SIZE * TilingConfig::BLOCK_WARPS);
-    if (threadIdx.x < (NNZ_VECTOR_ThisTile1 % (WARP_SIZE * TilingConfig::BLOCK_WARPS)))
-        Num_NNZ_Vector1++;
-    *NNZ_VECTOR_ThreadLocal1 = Num_NNZ_Vector1;
-    if (TilingConfig::TILE_M == 256) {
-        int Num_NNZ_Vector2 = NNZ_VECTOR_ThisTile2 / (WARP_SIZE * TilingConfig::BLOCK_WARPS);
-        if (threadIdx.x < (NNZ_VECTOR_ThisTile2 % (WARP_SIZE * TilingConfig::BLOCK_WARPS)))
-            Num_NNZ_Vector2++;
-        *NNZ_VECTOR_ThreadLocal2 = Num_NNZ_Vector2;
-    }
-    //
-    int Max_NNZ_VECTOR_ThisTile =
-        (TilingConfig::TILE_M == 256) ? max(NNZ_VECTOR_ThisTile1, NNZ_VECTOR_ThisTile2) : NNZ_VECTOR_ThisTile1;
-#pragma unroll
-    for (int i = 0; i < SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / SparseKernelConfig::VECTOR_SIZE; i++) {
-        int index = threadIdx.x + i * (WARP_SIZE * (TilingConfig::BLOCK_WARPS));
-        if (index >= Max_NNZ_VECTOR_ThisTile)
-            break;
-        if (index < NNZ_VECTOR_ThisTile1
-            || TilingConfig::TILE_M != 256)  // if TILE_M!=256, not need to compare since we have break();
-        {
-            tmp1 = GlobalPTR1[index].x + GlobalPTR1[index].y + GlobalPTR1[index].z + GlobalPTR1[index].w;
-        }
-        if (TilingConfig::TILE_M == 256)
-            if (index < NNZ_VECTOR_ThisTile2) {
-                tmp2 = GlobalPTR2[index].x + GlobalPTR2[index].y + GlobalPTR2[index].z + GlobalPTR2[index].w;
-            }
-    }
-    smem_int_ptr[tid] = tmp1 + tmp2;
-}
 
 // Init Shared Memory to 0
 template<typename TilingConfig>
