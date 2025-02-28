@@ -10,6 +10,9 @@
 #include <string>
 #include <vector>
 
+namespace flash_llm_utils {
+
+
 // Fixed Parameters
 #define MMA_M 16
 #define MMA_N 16
@@ -1285,7 +1288,7 @@ extern "C" void GenSparseMatrixBinFile(char* DenseMatrixFileName,
 }
 
 
-
+}
 
 
 #endif

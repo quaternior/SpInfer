@@ -380,7 +380,7 @@ auto Split_K = SPLIT_K;
         exit(-1);
     }
     cudaMemset(D_SpMM2, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
-    auto NumOffsets = InitSparseMatrixA_API_NoReorder(A_h, M_GLOBAL, N_GLOBAL, K_GLOBAL, &NZWeights_CPU, &TileOffsets_CPU);
+    auto NumOffsets = flash_llm_utils::InitSparseMatrixA_API_NoReorder(A_h, M_GLOBAL, N_GLOBAL, K_GLOBAL, &NZWeights_CPU, &TileOffsets_CPU);
     auto NNZ        = TileOffsets_CPU[NumOffsets - 1] * 4;  // VectorSize = 4
     printf("NumOffsets: %d, NNZ: %d\n", NumOffsets, NNZ);
     //
@@ -410,7 +410,7 @@ auto Split_K = SPLIT_K;
     }
     //
     for (int i = 0; i < WARM_UP_ITERATION; i++)
-        SpMM_SplitK_API(0,
+        flash_llm_utils::SpMM_SplitK_API(0,
                         A,
                         reinterpret_cast<uint4*>(NZWeights_GPU),
                         TileOffsets_GPU,
@@ -423,7 +423,7 @@ auto Split_K = SPLIT_K;
                         Split_K);
     cudaEventRecord(start);
     for (int i = 0; i < BENCHMARK_ITERATION; i++)
-        SpMM_SplitK_API(0,
+        flash_llm_utils::SpMM_SplitK_API(0,
                         A,
                         reinterpret_cast<uint4*>(NZWeights_GPU),
                         TileOffsets_GPU,
