@@ -23,9 +23,10 @@
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
 #include <stdio.h>
+#include "SpMM_API.cuh"
 
 #ifdef USE_FLASH_LLM
-#include "SpMM_API.cuh"
+#include "./Flashllm_utils.cuh"
 #endif
 
 #ifdef USE_SPUTNIK
