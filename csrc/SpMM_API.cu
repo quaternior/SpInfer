@@ -548,7 +548,7 @@ __host__ int InitSparseMatrixA_bitmap(
 
                                             if (row < M && col < K) {
                                                 half val = A_h[row * K + col];
-                                                if (val != __float2half(0.0f)) {
+                                                if (__half2float(val) != 0.0f) {
                                                     tile_bitmap |= (1ULL << (row_offset * tile_K + col_offset));
                                                     (*Compressed_Val)[val_count++] = val;
                                                     local_val_count++;
