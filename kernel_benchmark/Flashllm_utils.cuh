@@ -10,10 +10,6 @@
 #include <string>
 #include <vector>
 
-
-//#define DEBUG_MODE 1
-#define RELEASE_MODE 1
-
 // Fixed Parameters
 #define MMA_M 16
 #define MMA_N 16
