@@ -403,7 +403,8 @@ void printMatrix(const half* mat, int M, int K, int StartRow, int EndRow, int St
     }
     std::cout << std::endl;
 }
-void printMatrixColumnMajor(const half* mat, int M, int K, int StartRow, int EndRow, int StartCol, int EndCol, const std::string& name) {
+void printMatrixColumnMajor(const half* mat, int M, int K, int StartRow, int EndRow, 
+                            int StartCol, int EndCol, const std::string& name) {
     std::cout << name << " (Column Major):\n";
     for (int i = StartRow; i < EndRow; ++i) {
         for (int j = StartCol; j < EndCol; ++j) {
@@ -576,7 +577,8 @@ void print_bitmap_results(half* Compressed_Val, int* TileOffsets, uint64_t* bitm
     }
     std::cout << std::dec << std::endl;
 }
-void print_bitmap_v3_results(half* Compressed_Val, int* TileOffsets, int* TileOffsets_global, uint64_t* bitmap, int num_tiles, int num_global_tiles, int val_count) {
+void print_bitmap_v3_results(half* Compressed_Val, int* TileOffsets, int* TileOffsets_global, uint64_t* bitmap, 
+                            int num_tiles, int num_global_tiles, int val_count) {
 
     std::cout << "Compressed_Val: ";
     for (int i = 0; i < val_count; ++i) {
@@ -601,7 +603,11 @@ void print_bitmap_v3_results(half* Compressed_Val, int* TileOffsets, int* TileOf
     }
     std::cout << std::dec << std::endl;
 }
-void print_bitmap_v6_results(half* Compressed_Val, int* TileOffsets, int* TileOffsets_median, int* TileOffsets_global, uint64_t* bitmap, int num_tiles, int num_median_tiles, int num_global_tiles, int val_count) {
+void print_bitmap_v6_results(half* Compressed_Val, int* TileOffsets, 
+                             int* TileOffsets_median, int* TileOffsets_global, 
+                             uint64_t* bitmap, int num_tiles, 
+                             int num_median_tiles, int num_global_tiles, 
+                             int val_count) {
     std::cout << "TileOffsets: ";
     for (int i = 0; i < num_tiles; ++i) {
         std::cout << "-i: " << i << " " << TileOffsets[i] << " ";

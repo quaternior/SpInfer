@@ -11,10 +11,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ***************************************************************************/
-
-#define USE_CUBLAS
-#define USE_FLASH_LLM
-
 #include "./spmm_test_utils.h"
 #include <assert.h>
 #include <cublas_v2.h>
@@ -24,19 +20,8 @@
 #include <cusparse_v2.h>
 #include <stdio.h>
 #include "SpMM_API.cuh"
-
-#ifdef USE_FLASH_LLM
 #include "./Flashllm_utils.cuh"
-#endif
 
-#ifdef USE_SPUTNIK
-#include "./sputnik_utils.h"
-#include "sputnik/sputnik.h"
-#endif
-
-#ifdef USE_SPARTA
-#include "sparTA.h"
-#endif
 
 int main(int argc, char** argv)
 {
@@ -50,8 +35,6 @@ int main(int argc, char** argv)
     int MATRIX_A_PRUNING_PERCENTAGE = atoi(argv[4]);
     int SPLIT_K                     = atoi(argv[5]);
     cublasStatus_t cublas_status;
-    // cusparseStatus_t  cusparse_status;
-    // cudaError_t       cuda_error;
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -91,11 +74,8 @@ int main(int argc, char** argv)
     cudaMemcpy(B_Transposed, B_Transposed_h, sizeof(half) * N_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     checkLastCudaError(__LINE__);
  
- 
- 
-
-    //#ifdef USE_CUBLAS
-    /////////////////////////////////////////////////////////////////////////////////////////////////
+// CUBLAS
+/////////////////////////////////////////////////////////////////////////////////////////////////
     printf("Launching CuBlas...\n");
     half* D_cublas = NULL;
     cudaMalloc(reinterpret_cast<void**>(&D_cublas), sizeof(half) * M_GLOBAL * N_GLOBAL);
@@ -230,13 +210,11 @@ int main(int argc, char** argv)
     }
     cudaMemcpy(D_cublas_h, D_cublas, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
     cudaFree(D_cublas);
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-//#endif
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
     auto Split_K = SPLIT_K;
-
-
-    // Flash-llm
-    ////////////////////////////////////////////////////////////////////////////////////////////////
+// Flash-llm
+////////////////////////////////////////////////////////////////////////////////////////////////
     uint32_t* NZWeights_CPU   = NULL;
     int*      TileOffsets_CPU = NULL;
     // int Split_K = SPLIT_K;
@@ -321,7 +299,7 @@ int main(int argc, char** argv)
     /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-// bitmapv3
+// SpInfer
 ////////////////////////////////////////////////////////////////////////////////////////////////
     half* D_SpMM_bitmapv3 = NULL;
     cudaMalloc(reinterpret_cast<void**>(&D_SpMM_bitmapv3), sizeof(half) * M_GLOBAL * N_GLOBAL);
