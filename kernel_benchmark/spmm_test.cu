@@ -455,8 +455,8 @@ auto Split_K = SPLIT_K;
     double totalError_SpMM2 = 0.0;
     double totalError_SpMM_bitmapv3 = 0.0;
 
-    double totalError_SpMM2 = ComputeTotalError(D_cublas_h, D_SpMM_h2, M_GLOBAL, N_GLOBAL);
-    double totalError_SpMM_bitmapv3 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
+    totalError_SpMM2 = ComputeTotalError(D_cublas_h, D_SpMM_h2, M_GLOBAL, N_GLOBAL);
+    totalError_SpMM_bitmapv3 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
     
     free(D_SpMM_h2);
     free(D_SpMM_hbitmapv3);
