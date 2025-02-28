@@ -1,4 +1,5 @@
 /***************************************************************************
+ * Copyright 2025 The SpInfer Authors. All rights reserved.
  * Copyright 2023 The FLash-LLM Authors. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,8 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ***************************************************************************/
-// Extended from CUTLASS's source code
-
+// Extended from https://github.com/AlibabaResearch/flash-llm/blob/main/csrc/AsyncCopy_PTX.cuh
 template<int SizeInBytes>
 __device__ __forceinline__ void cp_async(half* smem_ptr, const half* global_ptr, bool pred_guard = true)
 {

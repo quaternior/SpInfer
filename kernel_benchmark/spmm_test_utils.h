@@ -1,4 +1,5 @@
 /***************************************************************************
+ * Copyright 2025 The SpInfer Authors. All rights reserved.
  * Copyright 2023 The FLash-LLM Authors. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,23 +30,7 @@
 #ifdef USE_CUSPARSE
 #define CUSPARSE_ITERATION 10
 #endif
-// Problem size
-//#define M_GLOBAL    (36*1024)                               //
-//#define K_GLOBAL    (9*1024)                                // must be 64X
-//#define N_GLOBAL    16                                     // must be 8X
-//#define SPLIT_K     3
-//#define MATRIX_A_PRUNING_PERCENTAGE 80
 
-//printf("\n\
-//        CUSPARSE_SPMM_ALG_DEFAULT      = 0,\n\
-//        CUSPARSE_SPMM_COO_ALG1         = 1,\n\
-//        CUSPARSE_SPMM_COO_ALG2         = 2,\n\
-//        CUSPARSE_SPMM_COO_ALG3         = 3,\n\
-//        CUSPARSE_SPMM_COO_ALG4         = 5,\n\
-//        CUSPARSE_SPMM_CSR_ALG1         = 4,\n\
-//        CUSPARSE_SPMM_CSR_ALG2         = 6,\n\
-//        CUSPARSE_SPMM_CSR_ALG3         = 12,\n\
-//        CUSPARSE_SPMM_BLOCKED_ELL_ALG1 = 13\n");
 
 void checkCublasError(cublasStatus_t status, int line)
 {
@@ -75,12 +60,6 @@ void checkCublasError(cublasStatus_t status, int line)
         }                                                                                                              \
     }
 
-// void checkCusparseError(cusparseStatus_t status, int line) {
-//    if (status != CUSPARSE_STATUS_SUCCESS) {
-//        printf("CuSparse Error at line %d, Error Code: %d\n", line, status);
-//        exit(EXIT_FAILURE);
-//    }
-//}
 
 #define CUDA_CALL(code)                                                                                                \
     do {                                                                                                               \
@@ -109,20 +88,16 @@ void checkLastCudaError(int line)
 __host__ void
 init_host_matrices(half* a, half* b, int M_GLOBAL, int K_GLOBAL, int N_GLOBAL, int MATRIX_A_PRUNING_PERCENTAGE)
 {
-    // srand((int)time(0));
     for (int i = 0; i < M_GLOBAL; i++) {
         for (int j = 0; j < K_GLOBAL; j++) {
             int r = rand() % 100;
             if (r >= MATRIX_A_PRUNING_PERCENTAGE)
-                // a[j + i * K_GLOBAL] = __float2half_rn(1.0f);
                 a[j + i * K_GLOBAL] = __float2half_rn(static_cast<float>((rand() % 5)) / 5 - 0.5f);
             else
                 a[j + i * K_GLOBAL] = __float2half_rn(0.0f);
-            // a[i] = __float2half_rn(0.0f);
         }
     }
     for (int i = 0; i < N_GLOBAL * K_GLOBAL; i++)
-        // b[i] = __float2half_rn(1.0);
         b[i] = __float2half_rn(static_cast<float>((rand() % 5)) / 5 - 0.5f);
 }
 
@@ -190,34 +165,7 @@ void PrintMismatchV1(const char* KernelName,
             break;
     }
 }
-// void PrintMatrix(const char* MatrixName,
-//                  half*       Matrix,
-//                  int         M_GLOBAL,
-//                  int         N_GLOBAL,
-//                  int         MaxRows,
-//                  int         MaxCols)
-// {
-//     printf("Printing Matrix %s (showing up to %d rows and %d columns):\n", MatrixName, MaxRows, MaxCols);
-//     // Determine the number of rows and columns to print
-//     int rows_to_print = (MaxRows < M_GLOBAL) ? MaxRows : M_GLOBAL;
-//     int cols_to_print = (MaxCols < N_GLOBAL) ? MaxCols : N_GLOBAL;
-    
-//     for (int i = 0; i < rows_to_print; i++) {
-//         for (int j = 0; j < cols_to_print; j++) {
-//             printf("%8.4f ", __half2float(Matrix[i*N_GLOBAL + j]));
-//         }
-//         if (cols_to_print < N_GLOBAL) {
-//             printf("...");  // Indicate there are more columns
-//         }
-//         printf("\n");
-//     }
-    
-//     if (rows_to_print < M_GLOBAL) {
-//         printf("...\n");  // Indicate there are more rows
-//     }
-    
-//     printf("\n");
-// }
+
 void PrintMatrix(const char* MatrixName,
                  half*       Matrix,
                  int         M_GLOBAL,
@@ -298,8 +246,141 @@ void PrintPerformance(const char* KernelName, float milliseconds, float tflops, 
            error);
 }
 
+void SavePerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
+                        float duration_cublas_tc, float tflops_cublas_tc,
+                        float duration_SpMM2, float tflops_SpMM2,
+                        float duration_SpMM_bitmapv3, float tflops_SpMM_bitmapv3) {
+    FILE* fp;
+    // Try to open file to check if it exists
+    fp = fopen(filename, "r");
+    bool fileExists = (fp != NULL);
+    if (fp) fclose(fp);
+    
+    // Open file in append mode
+    fp = fopen(filename, "a");
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
 
+    // Write header if file is new
+    if (!fileExists) {
+        fprintf(fp, "M,K,N,SplitK,Sparsity,Kernel,Duration(ns),TFLOPS\n");
+    }
 
+    // Convert milliseconds to nanoseconds
+    float duration_cublas_tc_ns = duration_cublas_tc * 1000000;
+    float duration_SpMM2_ns = duration_SpMM2 * 1000000;
+    float duration_SpMM_bitmapv3_ns = duration_SpMM_bitmapv3 * 1000000;
+
+    // Write data for each kernel
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "SpInfer", 
+            duration_SpMM_bitmapv3_ns, tflops_SpMM_bitmapv3);
+    
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "cuBLAS_TC", 
+            duration_cublas_tc_ns, tflops_cublas_tc);
+    
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "Flash-LLM", 
+            duration_SpMM2_ns, tflops_SpMM2);
+
+    fclose(fp);
+}
+
+void SaveCuSparsePerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
+                                float duration_CuSparse_ColMajor, float tflops_CuSparse_ColMajor) {
+    FILE* fp;
+    // Try to open file to check if it exists
+    fp = fopen(filename, "r");
+    bool fileExists = (fp != NULL);
+    if (fp) fclose(fp);
+    
+    // Open file in append mode
+    fp = fopen(filename, "a");
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
+
+    // Write header if file is new
+    if (!fileExists) {
+        fprintf(fp, "M,K,N,SplitK,Sparsity,Kernel,Duration(ns),TFLOPS\n");
+    }
+
+    // Select the better performance between CuSparse Row and Col Major
+    float cusparse_duration_ns, cusparse_tflops;
+    cusparse_duration_ns = duration_CuSparse_ColMajor * 1000000; // convert to nanoseconds
+    cusparse_tflops = tflops_CuSparse_ColMajor;
+
+    // Write data for cuSPARSE
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "cuSPARSE", 
+            cusparse_duration_ns, cusparse_tflops);
+
+    fclose(fp);
+}
+void SaveSputnikPerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
+                               float duration_Sputnik, float tflops_Sputnik) {
+    FILE* fp;
+    // Try to open file to check if it exists
+    fp = fopen(filename, "r");
+    bool fileExists = (fp != NULL);
+    if (fp) fclose(fp);
+    
+    // Open file in append mode
+    fp = fopen(filename, "a");
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
+
+    // Write header if file is new
+    if (!fileExists) {
+        fprintf(fp, "M,K,N,SplitK,Sparsity,Kernel,Duration(ns),TFLOPS\n");
+    }
+
+    // Convert milliseconds to nanoseconds
+    float sputnik_duration_ns = duration_Sputnik * 1000000;
+
+    // Write data for Sputnik
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "Sputnik", 
+            sputnik_duration_ns, tflops_Sputnik);
+
+    fclose(fp);
+}
+void SaveSparTAPerformanceData(const char* filename, int M, int K, int N, int SplitK, int Sparsity, 
+                              float duration_sparTA, float tflops_sparTA) {
+    FILE* fp;
+    // Try to open file to check if it exists
+    fp = fopen(filename, "r");
+    bool fileExists = (fp != NULL);
+    if (fp) fclose(fp);
+    
+    // Open file in append mode
+    fp = fopen(filename, "a");
+    if (!fp) {
+        printf("Error opening file for writing!\n");
+        return;
+    }
+
+    // Write header if file is new
+    if (!fileExists) {
+        fprintf(fp, "M,K,N,SplitK,Sparsity,Kernel,Duration(ns),TFLOPS\n");
+    }
+
+    // Convert milliseconds to nanoseconds
+    float sparta_duration_ns = duration_sparTA * 1000000;
+
+    // Write data for sparTA
+    fprintf(fp, "%d,%d,%d,%d,%d,%s,%.1f,%.5f\n", 
+            M, K, N, SplitK, Sparsity, "SparTA", 
+            sparta_duration_ns, tflops_sparTA);
+
+    fclose(fp);
+}
 std::vector<int> findRemainingValues(int first, int second) {
     std::vector<int> allValues = {3, 2, 1, 0};
     std::vector<int> remainingValues;
@@ -558,91 +639,6 @@ bool compareMatrices(const half* mat1, const half* mat2, int size) {
     }
     return true;
 }
-__host__ int InitSparseMatrixA_bitmap(half* A_h,
-                                      int M,  // 行数
-                                      int K,  // 列数
-                                      int tile_M,  // 8
-                                      int tile_K,  // 8
-                                      half** Compressed_Val,  // 压缩后 tile 重排的 Val 数组
-                                      int** TileOffsets,      // 每个 tile 的非零值 offset
-                                      uint64_t** bitmap)      // 每个 tile 的 bitmap
-{
-    // 计算有多少个 tile
-    int num_tiles_M = M / tile_M;  // 每行有多少个 tile
-    int num_tiles_K = K / tile_K;  // 每列有多少个 tile
-    int num_tiles = num_tiles_M * num_tiles_K;  // 矩阵中总共的 tile 数量
-
-    // 为 Compressed_Val, TileOffsets 和 bitmap 分配内存
-    *Compressed_Val = (half*)malloc(M * K * sizeof(half)); // 最坏情况下存储所有值
-    *TileOffsets = (int*)malloc((num_tiles+1) * sizeof(int)); // 每个 tile 一个 offset
-    *bitmap = (uint64_t*)malloc(num_tiles * sizeof(uint64_t)); // 每个 tile 一个 64 位 bitmap
-
-    if (*Compressed_Val == nullptr || *TileOffsets == nullptr || *bitmap == nullptr) {
-        return -1; // 分配失败，返回错误码
-    }
-
-    int val_count = 0; // 记录总共压缩后值的数量
-    int tile_idx = 0;  // 记录当前处理的 tile 索引
-
-    // 遍历所有 tile
-    for (int tile_m = 0; tile_m < num_tiles_M; ++tile_m) {
-        for (int tile_k = 0; tile_k < num_tiles_K; ++tile_k) {
-            // 计算当前 tile 的起始位置
-            int row_start = tile_m * tile_M;
-            int col_start = tile_k * tile_K;
-
-            // 初始化当前 tile 的 bitmap
-            uint64_t tile_bitmap = 0;
-
-            // 先处理偶数列 0, 2, 4, 6
-            for (int row_offset = 0; row_offset < 8; ++row_offset) {
-                for (int col_offset = 0; col_offset < 8; col_offset += 2) {
-                    int row = row_start + row_offset;
-                    int col = col_start + col_offset;
-
-                    if (row < M && col < K) {
-                        half val = A_h[row * K + col];
-                        if (__half2float(val) != 0.0f) { // 如果非零
-                            tile_bitmap |= (1ULL << (row_offset*4 + (col_offset / 2))); // 设置 bitmap 对应位
-                            (*Compressed_Val)[val_count++] = val; // 存储非零值
-                        }
-                    }
-                }
-            }
-
-            // 再处理奇数列 1, 3, 5, 7
-            for (int row_offset = 0; row_offset < 8; ++row_offset) {
-                for (int col_offset = 1; col_offset < 8; col_offset += 2) {
-                    int row = row_start + row_offset;
-                    int col = col_start + col_offset;
-
-                    if (row < M && col < K) {
-                        half val = A_h[row * K + col];
-                        if (__half2float(val) != 0.0f) { // 如果非零
-                            tile_bitmap |= (1ULL << (32 + row_offset*4 + (col_offset / 2))); // 设置 bitmap 对应位
-                            (*Compressed_Val)[val_count++] = val; // 存储非零值
-                        }
-                    }
-                }
-            }
-
-            // 记录当前 tile 的 bitmap
-            (*bitmap)[tile_idx] = tile_bitmap;
-
-            // 记录当前 tile 的 offset
-            (*TileOffsets)[tile_idx+1] = val_count;
-
-            // 处理下一个 tile
-            ++tile_idx;
-        }
-    }
-    (*TileOffsets)[0] = 0;
-    // 减少 Compressed_Val 的大小到实际需要的大小
-    *Compressed_Val = (half*)realloc(*Compressed_Val, val_count * sizeof(half));
-
-    return num_tiles; // 成功
-}
-
 __host__ int InitSparseMatrixA_bitmap_v2(
     half* A_h,
     int M,  // 行数
@@ -1255,150 +1251,6 @@ int InitSparseMatrixA_bitmap_v6(
 
     return num_global_tiles;
 }
-// int InitSparseMatrixA_bitmap_v6(
-//     half* A_h,
-//     int M,  // 行数
-//     int K,  // 列数
-//     int tile_M,  // 8
-//     int tile_M_median,  // 16
-//     int tile_M_global,  // 64
-//     int tile_K,  // 8
-//     int tile_K_median,  // 64
-//     int tile_K_global,  // 64
-//     half** Compressed_Val,
-//     int** TileOffsets,
-//     int** TileOffsets_median,
-//     int** TileOffsets_global,
-//     uint64_t** bitmap,
-//     int& max_nnz_count)
-// {
-//     // 计算各层的tile数量
-//     int num_tiles_M = M / tile_M;
-//     int num_tiles_K = K / tile_K;
-//     int num_tiles = num_tiles_M * num_tiles_K;
-    
-//     int num_median_tiles_M = M / tile_M_median;
-//     int num_median_tiles_K = K / tile_K_median;
-//     int num_median_tiles = num_median_tiles_M * num_median_tiles_K;
-
-//     int num_global_tiles_M = M / tile_M_global;
-//     int num_global_tiles_K = K / tile_K_global;
-//     int num_global_tiles = num_global_tiles_M * num_global_tiles_K;
-
-//     // 为各数据结构分配内存
-//     *Compressed_Val = (half*)malloc(M * K * sizeof(half));
-//     *TileOffsets = (int*)malloc(num_tiles * sizeof(int));
-//     *TileOffsets_median = (int*)malloc((num_median_tiles + 1) * sizeof(int));
-//     *TileOffsets_global = (int*)malloc((num_global_tiles + 1) * sizeof(int));
-//     *bitmap = (uint64_t*)malloc(num_tiles * sizeof(uint64_t));
-
-//     if (*Compressed_Val == nullptr || *TileOffsets == nullptr || 
-//         *TileOffsets_median == nullptr || *TileOffsets_global == nullptr || *bitmap == nullptr) {
-//         return -1;
-//     }
-
-//     int val_count = 0;
-//     int tile_idx = 0;
-//     std::vector<int> median_val_counts(num_median_tiles + 1, 0);
-//     std::vector<int> global_val_counts(num_global_tiles + 1, 0);
-//     max_nnz_count = 0;
-
-//     // 遍历所有 global tiles
-//     for (int global_tile_m = 0; global_tile_m < num_global_tiles_M; ++global_tile_m) {
-//         for (int global_tile_k = 0; global_tile_k < num_global_tiles_K; ++global_tile_k) {
-//             int global_row_start = global_tile_m * tile_M_global;
-//             int global_col_start = global_tile_k * tile_K_global;
-//             int global_val_count = 0;
-
-//             // 遍历 global tile 内的 median tiles (按行顺序)
-//             for (int median_tile_m = 0; median_tile_m < tile_M_global / tile_M_median; ++median_tile_m) {
-//                 for (int median_tile_k = 0; median_tile_k < tile_K_global / tile_K_median; ++median_tile_k) {
-//                     int median_row_start = global_row_start + median_tile_m * tile_M_median;
-//                     int median_col_start = global_col_start + median_tile_k * tile_K_median;
-
-//                     int local_val_count = 0;
-//                     int median_idx = (global_tile_m * (tile_M_global / tile_M_median) + median_tile_m) * num_median_tiles_K + 
-//                                      (global_tile_k * (tile_K_global / tile_K_median) + median_tile_k);
-
-//                     // 处理 median tile 内的 2x2 小 tile 组
-//                     for (int local_tile_m_group = 0; local_tile_m_group < tile_M_median / tile_M; local_tile_m_group += 2) {
-//                         for (int local_tile_k_group = 0; local_tile_k_group < tile_K_median / tile_K; local_tile_k_group += 2) {
-//                             // 按列优先处理 2x2 的小 tile 组
-//                             for (int j = 0; j < 2; ++j) {
-//                                 for (int i = 0; i < 2; ++i) {
-//                                     int local_tile_k = local_tile_k_group + j;
-//                                     int local_tile_m = local_tile_m_group + i;
-
-//                                     int col_start = median_col_start + local_tile_k * tile_K;
-//                                     int row_start = median_row_start + local_tile_m * tile_M;
-
-//                                     uint64_t tile_bitmap = 0;
-
-//                                     // 处理小 tile 中的所有元素
-//                                     for (int row_offset = 0; row_offset < tile_M; ++row_offset) {
-//                                         for (int col_offset = 0; col_offset < tile_K; ++col_offset) {
-//                                             int row = row_start + row_offset;
-//                                             int col = col_start + col_offset;
-
-//                                             if (row < M && col < K) {
-//                                                 half val = A_h[row * K + col];
-//                                                 if (__half2float(val) != 0.0f) {
-//                                                     tile_bitmap |= (1ULL << (row_offset * tile_K + col_offset));
-//                                                     (*Compressed_Val)[val_count++] = val;
-//                                                     local_val_count++;
-//                                                     median_val_counts[median_idx + 1]++;
-//                                                     global_val_count++;
-//                                                 }
-//                                             }
-//                                         }
-//                                     }
-
-//                                     (*bitmap)[tile_idx] = tile_bitmap;
-//                                     (*TileOffsets)[tile_idx] = local_val_count;
-//                                     ++tile_idx;
-//                                 }
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-
-//             // Additional padding for global tiles (if necessary)
-//             int global_padding = (8 - (global_val_count % 8)) % 8;
-//             for (int p = 0; p < global_padding; ++p) {
-//                 (*Compressed_Val)[val_count++] = __float2half(0.0f);
-//             }
-//             global_val_count += global_padding;
-
-//             // Update global_val_counts and max_nnz_count
-//             global_val_counts[global_tile_m * num_global_tiles_K + global_tile_k + 1] = global_val_count;
-//             if (global_val_count > max_nnz_count) {
-//                 max_nnz_count = global_val_count;
-//             }
-//         }
-//     }
-
-//     // Calculate offsets for median and global tiles
-//     (*TileOffsets_median)[0] = 0;
-//     (*TileOffsets_global)[0] = 0;
-
-//     for (int i = 1; i <= num_median_tiles; ++i) {
-//         median_val_counts[i] += median_val_counts[i - 1];
-//         (*TileOffsets_median)[i] = median_val_counts[i];
-//     }
-
-//     for (int i = 1; i <= num_global_tiles; ++i) {
-//         global_val_counts[i] += global_val_counts[i - 1];
-//         (*TileOffsets_global)[i] = global_val_counts[i];
-//     }
-
-//     // 减少 Compressed_Val 的大小到实际需要的大小
-//     *Compressed_Val = (half*)realloc(*Compressed_Val, val_count * sizeof(half));
-
-//     return num_global_tiles;
-// }
-
-
 void printBinary(uint64_t number) {
     for (int bit = 63; bit >= 0; --bit) {
         std::cout << ((number >> bit) & 1);
@@ -1429,66 +1281,54 @@ void print_bitmap_results(half* Compressed_Val, int* TileOffsets, uint64_t* bitm
     std::cout << std::dec << std::endl; // 恢复到十进制格式
 }
 void print_bitmap_v3_results(half* Compressed_Val, int* TileOffsets, int* TileOffsets_global, uint64_t* bitmap, int num_tiles, int num_global_tiles, int val_count) {
-    // 打印压缩后的非零值数组
+
     std::cout << "Compressed_Val: ";
     for (int i = 0; i < val_count; ++i) {
         std::cout << __half2float(Compressed_Val[i]) << " ";
     }
     std::cout << std::endl;
 
-    // 打印 TileOffsets
+
     std::cout << "TileOffsets: ";
     for (int i = 0; i < num_tiles; ++i) {
         std::cout << "-i: " << i << " " << TileOffsets[i] << " ";
     }
     std::cout << std::endl;
 
-    // 打印 TileOffsets_global
+
     std::cout << "TileOffsets_global: ";
     for (int i = 0; i <= num_global_tiles; ++i) {
         std::cout << "-i: " << i << " " << TileOffsets_global[i] << " ";
     }
     std::cout << std::endl;
 
-    // 打印 bitmap
+
     std::cout << "Bitmaps: ";
     for (int i = 0; i < num_tiles; ++i) {
         std::cout << i << " " << std::hex << bitmap[i] << " " << std::dec << bitmap[i] << " ";
         printBinary(bitmap[i]);
         std::cout << std::endl;
     }
-    std::cout << std::dec << std::endl; // 恢复到十进制格式
+    std::cout << std::dec << std::endl;
 }
 void print_bitmap_v6_results(half* Compressed_Val, int* TileOffsets, int* TileOffsets_median, int* TileOffsets_global, uint64_t* bitmap, int num_tiles, int num_median_tiles, int num_global_tiles, int val_count) {
-    // 打印压缩后的非零值数组
-    // std::cout << "Compressed_Val: ";
-    // for (int i = 0; i < val_count; ++i) {
-    //     std::cout << __half2float(Compressed_Val[i]) << " ";
-    // }
-    // std::cout << std::endl;
-
-    // 打印 TileOffsets
     std::cout << "TileOffsets: ";
     for (int i = 0; i < num_tiles; ++i) {
         std::cout << "-i: " << i << " " << TileOffsets[i] << " ";
     }
     std::cout << std::endl;
 
-    // 打印 TileOffsets_median
     std::cout << "TileOffsets_median: ";
     for (int i = 0; i < num_median_tiles; ++i) {
         std::cout << "-i: " << i << " " << TileOffsets_median[i] << " ";
     }
     std::cout << std::endl;
 
-    // 打印 TileOffsets_global
     std::cout << "TileOffsets_global: ";
     for (int i = 0; i <= num_global_tiles; ++i) {
         std::cout << "-i: " << i << " " << TileOffsets_global[i] << " ";
     }
     std::cout << std::endl;
-
-    // 打印 bitmap
     std::cout << "Bitmaps: ";
     for (int i = 0; i < num_tiles; ++i) {
         std::cout << i << " " << std::hex << bitmap[i] << " " << std::dec << bitmap[i] << " ";

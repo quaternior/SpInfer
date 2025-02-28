@@ -18,12 +18,8 @@
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
 #include <stdio.h>
-#define USE_SPARTA
-#ifdef USE_SPARTA
 #include "sparTA.h"
-#endif
 
-// ITERATION wrongly used in SPMM
 
 int main(int argc, char** argv)
 {
@@ -36,12 +32,7 @@ int main(int argc, char** argv)
     int N_GLOBAL                    = atoi(argv[3]);
     int MATRIX_A_PRUNING_PERCENTAGE = atoi(argv[4]);
     int SPLIT_K                     = atoi(argv[5]);
-    //
-    // printf("M: %d N: %d K: %d\n", M_GLOBAL, N_GLOBAL, K_GLOBAL);
-    //
     cublasStatus_t cublas_status;
-    // cusparseStatus_t  cusparse_status;
-    // cudaError_t       cuda_error;
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -75,22 +66,12 @@ int main(int argc, char** argv)
         for (int j = 0; j < N_GLOBAL; j++)
             B_Transposed_h[i * N_GLOBAL + j] = B_h[i + j * K_GLOBAL];
     //
-    printf("Preparing dense data for GPU...\n");
     cudaMemcpy(A, A_h, sizeof(half) * M_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     cudaMemcpy(B, B_h, sizeof(half) * N_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     cudaMemcpy(B_Transposed, B_Transposed_h, sizeof(half) * N_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     checkLastCudaError(__LINE__);
  
- 
- 
-
- 
-
-
-#ifdef USE_SPARTA
-    /////////////////////////////////////////////////////////////////////////////////////////////////
     printf("Launching sparTA...\n");
-    //
     float milliseconds_sparTA  = 0;
     half* D_sparTA_h_row_major = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
     if (D_sparTA_h_row_major == NULL) {
@@ -108,21 +89,13 @@ int main(int argc, char** argv)
         for (int j = 0; j < M_GLOBAL; j++)
             D_sparTA_h[i * M_GLOBAL + j] = D_sparTA_h_row_major[i + j * N_GLOBAL];
     free(D_sparTA_h_row_major);
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-#endif
-
-
-
-// #ifdef USE_FLASH_LLM
-
-    #ifdef USE_SPARTA
-    // double totalError_sparTA = ComputeTotalError(D_cublas_h, D_sparTA_h, M_GLOBAL, N_GLOBAL);
     double totalError_sparTA = 0.0;
     free(D_sparTA_h);
     PrintPerformance("sparTA", milliseconds_sparTA, tflops_sparTA, totalError_sparTA);
-    #endif
-    // PrintPerformance("FlashLLM_v2", milliseconds_SpMM, tflops_SpMM, totalError_SpMM);
-// #endif
+    SaveSparTAPerformanceData("SparTA_performance_results.csv",
+        M_GLOBAL, K_GLOBAL, N_GLOBAL, 
+        SPLIT_K, MATRIX_A_PRUNING_PERCENTAGE,
+        milliseconds_sparTA, tflops_sparTA);
     free(A_h);
     free(B_h);
     free(B_Transposed_h);

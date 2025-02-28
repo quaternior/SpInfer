@@ -1,4 +1,5 @@
 /***************************************************************************
+ * Copyright 2025 The SpInfer Authors. All rights reserved.
  * Copyright 2023 The FLash-LLM Authors. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ***************************************************************************/
+// Extended from https://github.com/AlibabaResearch/flash-llm/blob/main/csrc/MMA_PTX.cuh
 #include "TilingConfig.h"
 
 template<int NumOfTensors>
@@ -85,10 +87,6 @@ __device__ __forceinline__ void E_FragLoadFromSharedToRegisters(uint32_t __restr
     }
 }
 
-
-
-
-
 template<int NumOfTensors, int N8>
 __device__ __forceinline__ void B_FragLoadFromSharedToRegisters(uint32_t __restrict__ Registers[][4],
                                                                 half* __restrict__ smem,
@@ -119,50 +117,6 @@ __device__ __forceinline__ void B_FragLoadFromSharedToRegisters(uint32_t __restr
         smem_local_ptr += TILE_K * MMA_N * sizeof(half);
     }
 }
-
-template<int NumOfTensors, int N8>
-__device__ __forceinline__ void B_FragLoadFromSharedToRegisters_double(uint32_t __restrict__ Registers[][8],
-                                                                half* __restrict__ smem,
-                                                                int warp_start_row,
-                                                                int k_offset)
-{
-    //
-    int      lane_id             = threadIdx.x % 32;
-    int      i                   = lane_id % 8;
-    uint32_t Mask_RowPermutation = i << 4;
-
-    if (lane_id > 15)
-        i += 8;
-    int j = (lane_id % 16) >= 8 ? 1 : 0;
-    //
-    smem += TILE_K * (warp_start_row + i) + (k_offset + j * HALF_PER_128B);
-    half* __restrict__ smem1 = smem + MMA_K;
-    uint32_t __restrict__ smem_local_ptr = static_cast<uint32_t>(__cvta_generic_to_shared(smem));
-    uint32_t __restrict__ smem_local_ptr1 = static_cast<uint32_t>(__cvta_generic_to_shared(smem1));
-
-    // Row Permutation to eliminating bank-conflict
-
-    smem_local_ptr = smem_local_ptr ^ Mask_RowPermutation;
-    smem_local_ptr1 = smem_local_ptr1 ^ Mask_RowPermutation;
-
-    // uint32_t __restrict__ smem_local_ptr1 = smem_local_ptr + MMA_K * sizeof(half);
-//
-#pragma unroll
-    for (int i = 0; i < NumOfTensors; i++) {
-        asm volatile("ldmatrix.sync.aligned.x4.m8n8.shared.b16 {%0, %1, %2, %3}, [%4];\n"
-                     : "=r"(Registers[i][0]), "=r"(Registers[i][1]), "=r"(Registers[i][2]), "=r"(Registers[i][3])
-                     : "r"(smem_local_ptr));
-        asm volatile("ldmatrix.sync.aligned.x4.m8n8.shared.b16 {%0, %1, %2, %3}, [%4];\n"
-                     : "=r"(Registers[i][4]), "=r"(Registers[i][5]), "=r"(Registers[i][6]), "=r"(Registers[i][7])
-                     : "r"(smem_local_ptr1));
-        smem_local_ptr += TILE_K * MMA_N * sizeof(half);
-        smem_local_ptr1 += TILE_K * MMA_N * sizeof(half);
-
-        // smem_local_ptr1 = smem_local_ptr + MMA_K * sizeof(half);
-    }
-}
-
-
 __device__ __forceinline__ void
 MMA_FP16_M16N8K16(uint32_t __restrict__ c[], uint32_t __restrict__* a, uint32_t __restrict__* b)
 {

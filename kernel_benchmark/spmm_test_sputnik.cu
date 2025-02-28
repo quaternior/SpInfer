@@ -1,4 +1,5 @@
 /***************************************************************************
+ * Copyright 2025 The SpInfer Authors. All rights reserved.
  * Copyright 2023 The FLash-LLM Authors. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,7 +13,6 @@
  ***************************************************************************/
 
 
-#define USE_SPUTNIK
 
 #include "./spmm_test_utils.h"
 #include <assert.h>
@@ -22,16 +22,8 @@
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
 #include <stdio.h>
-
-
-
-#ifdef USE_SPUTNIK
 #include "./sputnik_utils.h"
 #include "sputnik/sputnik.h"
-#endif
-//
-
-// ITERATION wrongly used in SPMM
 
 int main(int argc, char** argv)
 {
@@ -44,12 +36,6 @@ int main(int argc, char** argv)
     int N_GLOBAL                    = atoi(argv[3]);
     int MATRIX_A_PRUNING_PERCENTAGE = atoi(argv[4]);
     int SPLIT_K                     = atoi(argv[5]);
-    //
-    // printf("M: %d N: %d K: %d\n", M_GLOBAL, N_GLOBAL, K_GLOBAL);
-    //
-    cublasStatus_t cublas_status;
-    // cusparseStatus_t  cusparse_status;
-    // cudaError_t       cuda_error;
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -77,19 +63,16 @@ int main(int argc, char** argv)
         printf("Error in cudaMalloc!\n");
         exit(-1);
     }
-    //
     init_host_matrices(A_h, B_h, M_GLOBAL, K_GLOBAL, N_GLOBAL, MATRIX_A_PRUNING_PERCENTAGE);
     for (int i = 0; i < K_GLOBAL; i++)
         for (int j = 0; j < N_GLOBAL; j++)
             B_Transposed_h[i * N_GLOBAL + j] = B_h[i + j * K_GLOBAL];
-    //
-    // printf("Preparing dense data for GPU...\n");
     cudaMemcpy(A, A_h, sizeof(half) * M_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     cudaMemcpy(B, B_h, sizeof(half) * N_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     cudaMemcpy(B_Transposed, B_Transposed_h, sizeof(half) * N_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     checkLastCudaError(__LINE__);
   
-#ifdef USE_SPUTNIK
+
     /////////////////////////////////////////////////////////////////////////////////////////////////
     printf("Launching Sputnik...\n");
     half* D_Sputnik = NULL;
@@ -104,11 +87,8 @@ int main(int argc, char** argv)
     A_float_h        = (float*)malloc(sizeof(float) * M_GLOBAL * K_GLOBAL);
     for (int i = 0; i < M_GLOBAL * K_GLOBAL; i++)
         A_float_h[i] = __half2float(A_h[i]);
-    printf("before init cpu...\n");
     sputnik_utils::SparseMatrix            sparse_matrix(M_GLOBAL, K_GLOBAL, A_float_h, sputnik_utils::IDENTITY, 4);
-    printf("init cpu...\n");
     sputnik_utils::CudaSparseMatrix<half2> sparse_matrix_gpu(sparse_matrix);
-    printf("init gpu...\n");
 
     for (int i = 0; i < WARM_UP_ITERATION; i++)
         CUDA_CALL(sputnik::CudaSpmm(M_GLOBAL,
@@ -146,11 +126,6 @@ int main(int argc, char** argv)
     cudaFree(D_Sputnik);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
-#endif
-
-
-
-
     printf("******************************************Problem Size******************************************\n");
     printf("M: %d N: %d K: %d Pruning Rate: %d SplitK: %d\n",
            M_GLOBAL,
@@ -159,11 +134,12 @@ int main(int argc, char** argv)
            MATRIX_A_PRUNING_PERCENTAGE,
            SPLIT_K);
 // printf("******************************************Performance*******************************************\n");
-
-#ifdef USE_SPUTNIK
     PrintPerformance("Sputnik", milliseconds_Sputnik, tflops_Sputnik, 0.0);
-#endif
 
+    SaveSputnikPerformanceData("sputnik_performance_results.csv",
+        M_GLOBAL, K_GLOBAL, N_GLOBAL, 
+        SPLIT_K, MATRIX_A_PRUNING_PERCENTAGE,
+        milliseconds_Sputnik, tflops_Sputnik);
     free(A_h);
     free(B_h);
     free(B_Transposed_h);

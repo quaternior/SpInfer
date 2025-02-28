@@ -10,6 +10,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ***************************************************************************/
+ // Extended from https://github.com/AlibabaResearch/flash-llm/blob/main/csrc/TilingConfig.cuh
 #ifndef TILINGCONFIG_H
 #define TILINGCONFIG_H
 
@@ -129,11 +130,6 @@ struct SparseKernelConfig {
     static constexpr int NUM_REG_FOR_SPARSE_KERNEL    = NUM_REG_FOR_SPARSE_KERNEL_;
     static constexpr int VECTOR_SIZE                  = 4;
     static constexpr int PADDING_SIZE_FOR_TILEOFFSETS = 2;  // (N+1 offsets) + 1 padding
-    // Sanity checks on the template arguments.
-    // static_assert((BLOCK_ROW_WARPS * BLOCK_COL_WARPS) == 4,
-    //               "The number of WARPS per threadblock must be 4.");
-    // Derived Parameters
-    // static constexpr int TILE_M = MMA_M * (WARP_ROW_TENSORS * BLOCK_ROW_WARPS);
 };
 
 #endif

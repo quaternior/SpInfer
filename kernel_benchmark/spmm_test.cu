@@ -1,4 +1,5 @@
 /***************************************************************************
+ * Copyright 2025 The SpInfer Authors. All rights reserved.
  * Copyright 2023 The FLash-LLM Authors. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,9 +14,6 @@
 
 #define USE_CUBLAS
 #define USE_FLASH_LLM
-//#define USE_SPUTNIK
-// #define USE_CUSPARSE
-// #define USE_SPARTA
 
 #include "./spmm_test_utils.h"
 #include <assert.h>
@@ -38,9 +36,6 @@
 #ifdef USE_SPARTA
 #include "sparTA.h"
 #endif
-//
-
-// ITERATION wrongly used in SPMM
 
 int main(int argc, char** argv)
 {
@@ -53,9 +48,6 @@ int main(int argc, char** argv)
     int N_GLOBAL                    = atoi(argv[3]);
     int MATRIX_A_PRUNING_PERCENTAGE = atoi(argv[4]);
     int SPLIT_K                     = atoi(argv[5]);
-    //
-    // printf("M: %d N: %d K: %d\n", M_GLOBAL, N_GLOBAL, K_GLOBAL);
-    //
     cublasStatus_t cublas_status;
     // cusparseStatus_t  cusparse_status;
     // cudaError_t       cuda_error;
@@ -239,490 +231,7 @@ int main(int argc, char** argv)
     cudaFree(D_cublas);
     /////////////////////////////////////////////////////////////////////////////////////////////////
 //#endif
-#ifdef USE_FLASH_LLM
-    int Split_K = SPLIT_K;
-    // // 2:4 unstructured
-    // /////////////////////////////////////////////////////////////////////////////////////////////////
-    // // split A_h to A_h_structured and A_h_unstructured
-    // auto A_h_structured = (half*)malloc(sizeof(half) * M_GLOBAL * K_GLOBAL);
-    // auto A_h_unstructured = (half*)malloc(sizeof(half) * M_GLOBAL * K_GLOBAL);
-    // std::vector<std::vector<std::tuple<int, int>>> metadata;
-    // std::vector<std::vector<std::tuple<int, int>>> metadata_reverse;
-    // std::vector<std::vector<std::tuple<int, int>>> metadata_unstructured;
-    // splitMatrix(A_h, M_GLOBAL, K_GLOBAL, A_h_structured, A_h_unstructured, metadata, metadata_unstructured);
-    // auto compressedMat = (half*)malloc(sizeof(half) * M_GLOBAL * K_GLOBAL / 2);
-    // auto compressedMat_unstructured = (half*)malloc(sizeof(half) * M_GLOBAL * K_GLOBAL / 2);
-    // compressSparseMat(A_h_structured, M_GLOBAL, K_GLOBAL, compressedMat, metadata);
-    // compressSparseMat(A_h_unstructured, M_GLOBAL, K_GLOBAL, compressedMat_unstructured, metadata_unstructured);
-    // // for (const auto& row : metadata) {
-    // //     for (const auto& entry : row) {
-    // //         std::cout << "(" << std::get<0>(entry) << ", " << std::get<1>(entry) << "), ";
-    // //     }
-    // //     std::cout << std::endl;
-    // // }
-    // auto bin_meta = metadataToBinary(metadata);
-    // int totalMetaElements = (M_GLOBAL/16) * (K_GLOBAL/2);
-    // // uint32_t* bin_meta_array = new uint32_t[totalMetaElements];
-    // auto bin_meta_array = (uint32_t*)malloc(sizeof(uint32_t) * totalMetaElements);
-    // binMetaToArray(bin_meta, bin_meta_array);
-    // // printMetaE(bin_meta_array, M_GLOBAL/16, K_GLOBAL/2, "MetaE"); 
-    // // printMatrix(A_h, M_GLOBAL, K_GLOBAL, M_GLOBAL - 16, M_GLOBAL, K_GLOBAL - 16, K_GLOBAL, "A_h");
-    // // printMatrix(A_h_structured,  M_GLOBAL, K_GLOBAL, M_GLOBAL - 16, M_GLOBAL, K_GLOBAL - 16, K_GLOBAL, "A_h_structured");
-    // // printMatrix(A_h_unstructured,  M_GLOBAL, K_GLOBAL, M_GLOBAL - 16, M_GLOBAL, K_GLOBAL - 16, K_GLOBAL, "A_h_unstructured"); 
-    // // printMatrix(compressedMat,  M_GLOBAL, K_GLOBAL/2, M_GLOBAL - 16, M_GLOBAL, K_GLOBAL/2 - 16, K_GLOBAL/2, "compressedMat"); 
-    // // printMatrix(compressedMat_unstructured, M_GLOBAL, K_GLOBAL/2 , M_GLOBAL - 16, M_GLOBAL, K_GLOBAL/2 - 16, K_GLOBAL/2, "compressedMat_unstructured"); 
-    // uint32_t* NZWeights_CPU_unstructured  = NULL;
-    // int*      TileOffsets_CPU_unstructured = NULL;
-    // auto NumOffsets_unstructured = InitSparseMatrixA_API_NoReorder_unstructured(compressedMat_unstructured, M_GLOBAL, N_GLOBAL, K_GLOBAL/2, &NZWeights_CPU_unstructured, &TileOffsets_CPU_unstructured);
-    // auto NNZ_unstructured       = TileOffsets_CPU_unstructured[NumOffsets_unstructured - 1] * 4;  // VectorSize = 4
-    // printf("NumOffsets_unstructured: %d, NNZ_unstructured: %d\n", NumOffsets_unstructured, NNZ_unstructured);
-    
-    // uint32_t* NZWeights_GPU_unstructured   = NULL;
-    // int*  TileOffsets_GPU_unstructured = NULL;
-    // cudaMalloc(&TileOffsets_GPU_unstructured, sizeof(int) * NumOffsets_unstructured);
-    // if (NNZ_unstructured == 0)
-    //   NNZ_unstructured = 1;  // For 100% sparsity, NNZ = 0, malloc will return NULL
-    // cudaMalloc(&NZWeights_GPU_unstructured, sizeof(uint32_t) * NNZ_unstructured);
-    // if (TileOffsets_GPU_unstructured == NULL || NZWeights_GPU_unstructured == NULL) {
-    //     printf("Error in malloc memory from device memory!\n");
-    //     exit(-1);
-    // }
-    // cudaMemcpy(NZWeights_GPU_unstructured, NZWeights_CPU_unstructured, sizeof(uint32_t) * NNZ_unstructured, cudaMemcpyHostToDevice);
-    // cudaMemcpy(TileOffsets_GPU_unstructured, TileOffsets_CPU_unstructured, sizeof(int) * NumOffsets_unstructured, cudaMemcpyHostToDevice);
-    // free(TileOffsets_CPU_unstructured);
-    // free(NZWeights_CPU_unstructured);
-    
-    // //
-    // half*  A_GPU_structured = NULL;
-    // cudaMalloc(&A_GPU_structured, sizeof(half) *  M_GLOBAL * K_GLOBAL / 2);
-    // cudaMemcpy(A_GPU_structured, compressedMat, sizeof(half) *  M_GLOBAL * K_GLOBAL / 2, cudaMemcpyHostToDevice);
-
-    // uint32_t*  MetaE = NULL;
-    // cudaMalloc(&MetaE, sizeof(uint32_t) *  totalMetaElements);
-    // cudaMemcpy(MetaE, bin_meta_array, sizeof(uint32_t) *  totalMetaElements, cudaMemcpyHostToDevice);
-
-    // //
-    // printf("Launching Flash-LLM without Ahead of Time Sparse Data Reordering...\n");
-  
-    // // printf("Split_K = %d\n", Split_K);
-    // half* Reduction_Workspace1 = NULL;
-    // cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace1), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
-    // if (Reduction_Workspace1 == NULL) {
-    //     printf("Error in cudaMalloc\n");
-    //     exit(-1);
-    // }
-    // //
-    // half* D_SpMM1 = NULL;
-    // cudaMalloc(reinterpret_cast<void**>(&D_SpMM1), sizeof(half) * M_GLOBAL * N_GLOBAL);
-    // if (D_SpMM1 == NULL) {
-    //     printf("Error in spmm_test.cu: line %d cudaMalloc falied\n", __LINE__);
-    //     exit(-1);
-    // }
-    // cudaMemset(D_SpMM1, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
-    // // for (int i = 0; i < WARM_UP_ITERATION; i++)
-    // //     SpMM_SplitK_APIv1(0,
-    // //                     A_GPU_structured,
-    // //                     MetaE,
-    // //                     reinterpret_cast<uint4*>(NZWeights_GPU_unstructured),
-    // //                     TileOffsets_GPU_unstructured,
-    // //                     B,
-    // //                     D_SpMM1,
-    // //                     M_GLOBAL,
-    // //                     N_GLOBAL,
-    // //                     K_GLOBAL,
-    // //                     Reduction_Workspace1,
-    // //                     Split_K);
-    // // cudaEventRecord(start);
-    // // for (int i = 0; i < BENCHMARK_ITERATION; i++)
-    // //     SpMM_SplitK_APIv1(0,
-    // //                     A_GPU_structured,
-    // //                     MetaE,
-    // //                     reinterpret_cast<uint4*>(NZWeights_GPU_unstructured),
-    // //                     TileOffsets_GPU_unstructured,
-    // //                     B,
-    // //                     D_SpMM1,
-    // //                     M_GLOBAL,
-    // //                     N_GLOBAL,
-    // //                     K_GLOBAL,
-    // //                     Reduction_Workspace1,
-    // //                     Split_K);
-    // // cudaEventRecord(stop);
-    // // cudaEventSynchronize(stop);
-    // checkLastCudaError(__LINE__);
-    // //
-    // float milliseconds_SpMM1 = 0.0f;
-    // cudaEventElapsedTime(&milliseconds_SpMM1, start, stop);
-    // milliseconds_SpMM1 = milliseconds_SpMM1 / BENCHMARK_ITERATION;
-    // float tflops_SpMM1 =
-    //     static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2) / (milliseconds_SpMM1 / 1000.))
-    //     / 1e12;
-    // half* D_SpMM_h1 = NULL;  // col major
-    // D_SpMM_h1       = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
-    // cudaMemcpy(D_SpMM_h1, D_SpMM1, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
-    // // printMatrixColumnMajor(D_SpMM_h1, M_GLOBAL, N_GLOBAL, 0, 32, 0, N_GLOBAL, "D_SpMM_h1"); 
-    // // printMatrixColumnMajor(D_cublas_h, M_GLOBAL, N_GLOBAL, 0, 32, 0, N_GLOBAL, "D_cublas_h"); 
-    
-    // compareMatrices(D_SpMM_h1, D_cublas_h, M_GLOBAL*N_GLOBAL);
-    // cudaFree(D_SpMM1);
-    // cudaFree(NZWeights_GPU_unstructured);
-    // cudaFree(TileOffsets_GPU_unstructured);
-    // cudaFree(Reduction_Workspace1);
-    // cudaFree(MetaE);
-    // cudaFree(A_GPU_structured);
-    
-    // free(A_h_structured);
-    // free(A_h_unstructured);
-    // free(compressedMat);
-    // free(compressedMat_unstructured);
-    // free(bin_meta_array);
-    
-// bitmap
-////////////////////////////////////////////////////////////////////////////////////////////////
-    // half* D_SpMM3 = NULL;
-    // cudaMalloc(reinterpret_cast<void**>(&D_SpMM3), sizeof(half) * M_GLOBAL * N_GLOBAL);
-    // if (D_SpMM3 == NULL) {
-    //     printf("Error in spmm_test.cu: line %d cudaMalloc falied\n", __LINE__);
-    //     exit(-1);
-    // }
-    // cudaMemset(D_SpMM3, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
-
-    // // 定义输出指针
-    // half* Compressed_Val_cpu = nullptr;
-    // int* bitmap_TileOffsets_cpu = nullptr;
-    // uint64_t* bitmap_cpu = nullptr;
-
-    // // 调用 InitSparseMatrixA_bitmap 函数
-    // auto num_tiles = InitSparseMatrixA_bitmap(A_h, M_GLOBAL, K_GLOBAL, 8, 8, &Compressed_Val_cpu, &bitmap_TileOffsets_cpu, &bitmap_cpu);
-    // int val_count = bitmap_TileOffsets_cpu[num_tiles]; // 最后一个 tile 的偏移即为压缩后的非零值总数
-    // printf("num_tiles: %d, NNZ: %d\n", num_tiles, val_count);
-    // // print_bitmap_results(Compressed_Val_cpu, bitmap_TileOffsets_cpu, bitmap_cpu, num_tiles, val_count);
-    
-    // //
-    // half* Compressed_Val_gpu = nullptr;
-    // int* bitmap_TileOffsets_gpu = nullptr;
-    // uint64_t* bitmap_gpu = nullptr;
-
-    // cudaMalloc(&bitmap_TileOffsets_gpu, sizeof(int) * (num_tiles + 1));
-    // cudaMalloc(&bitmap_gpu, sizeof(uint64_t) * (num_tiles));
-    // if (val_count == 0)
-    //     val_count = 1;  // For 100% sparsity, NNZ = 0, malloc will return NULL
-    // cudaMalloc(&Compressed_Val_gpu, sizeof(half) * val_count);
-    // if (bitmap_TileOffsets_gpu == NULL || bitmap_gpu == NULL || Compressed_Val_gpu == NULL) {
-    //     printf("Error in malloc memory from device memory!\n");
-    //     exit(-1);
-    // }
-    // cudaMemcpy(bitmap_TileOffsets_gpu, bitmap_TileOffsets_cpu, sizeof(int) * (num_tiles + 1), cudaMemcpyHostToDevice);
-    // cudaMemcpy(bitmap_gpu, bitmap_cpu, sizeof(uint64_t) * num_tiles, cudaMemcpyHostToDevice);
-    // cudaMemcpy(Compressed_Val_gpu, Compressed_Val_cpu, sizeof(half) * val_count, cudaMemcpyHostToDevice);
-    // free(bitmap_TileOffsets_cpu);
-    // free(bitmap_cpu);
-    // free(Compressed_Val_cpu);
-
-    // printf("Done! Compressed A matrix for bitmap GPU kernel.\n");
-    
-    // printf("Launching bitmap without Ahead of Time Sparse Data Reordering...\n");
-    // Split_K = SPLIT_K;
-    // printf("Split_K = %d\n", Split_K);
-    // half* Reduction_Workspace_bitmap = NULL;
-    // cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace_bitmap), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
-    // if (Reduction_Workspace_bitmap == NULL) {
-    //     printf("Error in cudaMalloc\n");
-    //     exit(-1);
-    // }
-    
-    // for (int i = 0; i < WARM_UP_ITERATION; i++)
-    //     SpMM_SplitK_API_bitmap(0,
-    //                     A,
-    //                     Compressed_Val_gpu,
-    //                     bitmap_TileOffsets_gpu,
-    //                     bitmap_gpu,
-    //                     B,
-    //                     D_SpMM3,
-    //                     M_GLOBAL,
-    //                     N_GLOBAL,
-    //                     K_GLOBAL,
-    //                     Reduction_Workspace_bitmap,
-    //                     Split_K);
-    // cudaEventRecord(start);
-    // for (int i = 0; i < BENCHMARK_ITERATION; i++)
-    //     SpMM_SplitK_API_bitmap(0,
-    //                     A,
-    //                     Compressed_Val_gpu,
-    //                     bitmap_TileOffsets_gpu,
-    //                     bitmap_gpu,
-    //                     B,
-    //                     D_SpMM3,
-    //                     M_GLOBAL,
-    //                     N_GLOBAL,
-    //                     K_GLOBAL,
-    //                     Reduction_Workspace_bitmap,
-    //                     Split_K);
-    // cudaEventRecord(stop);
-    // cudaEventSynchronize(stop);
-    // checkLastCudaError(__LINE__);
-    // //
-    // float milliseconds_SpMM_bitmap = 0.0f;
-    // cudaEventElapsedTime(&milliseconds_SpMM_bitmap, start, stop);
-    // milliseconds_SpMM_bitmap = milliseconds_SpMM_bitmap / BENCHMARK_ITERATION;
-    // float tflops_SpMM_bitmap =
-    //     static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2) / (milliseconds_SpMM_bitmap / 1000.))
-    //     / 1e12;
-    // half* D_SpMM_hbitmap = NULL;  // col major
-    // D_SpMM_hbitmap       = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
-    // cudaMemcpy(D_SpMM_hbitmap, D_SpMM3, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
-    // cudaFree(D_SpMM3);
-    // cudaFree(bitmap_TileOffsets_gpu);
-    // cudaFree(bitmap_gpu);
-    // cudaFree(Compressed_Val_gpu);
-    // cudaFree(Reduction_Workspace_bitmap);
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-// bitmapv1
-////////////////////////////////////////////////////////////////////////////////////////////////
-    half* D_SpMM_bitmapv1 = NULL;
-    cudaMalloc(reinterpret_cast<void**>(&D_SpMM_bitmapv1), sizeof(half) * M_GLOBAL * N_GLOBAL);
-    if (D_SpMM_bitmapv1 == NULL) {
-        printf("Error in spmm_test.cu: line %d cudaMalloc falied\n", __LINE__);
-        exit(-1);
-    }
-    cudaMemset(D_SpMM_bitmapv1, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
-
-    // 定义输出指针
-    half* Compressed_Val_cpu_v1 = nullptr;
-    int* bitmap_TileOffsets_cpu_v1 = nullptr;
-    int* bitmap_TileOffsets_global_cpu_v1 = nullptr;
-    uint64_t* bitmap_cpu_v1 = nullptr;
-    int max_nnz_intile = 0;
-    // 调用 InitSparseMatrixA_bitmap 函数
-    // auto num_gtiles = InitSparseMatrixA_bitmap_v3(A_h, M_GLOBAL, K_GLOBAL, 8, 16, 8, 64, &Compressed_Val_cpu_v1, &bitmap_TileOffsets_cpu_v1, &bitmap_TileOffsets_global_cpu_v1, &bitmap_cpu_v1,max_nnz_intile);
-    auto num_gtiles = InitSparseMatrixA_bitmap_v4(A_h, M_GLOBAL, K_GLOBAL, 8, 16, 8, 64, &Compressed_Val_cpu_v1, &bitmap_TileOffsets_cpu_v1, &bitmap_TileOffsets_global_cpu_v1, &bitmap_cpu_v1,max_nnz_intile);
-    
-    auto num_ltiles = num_gtiles*2*8;
-   
-    int val_count_v1 = bitmap_TileOffsets_global_cpu_v1[num_gtiles]; // 最后一个 tile 的偏移即为压缩后的非零值总数
-    // 将 max_nnz_intile 调整为 64 的倍数
-    if (max_nnz_intile % 64 != 0) {
-        max_nnz_intile = ((max_nnz_intile / 64) + 1) * 64;
-    }
-    printf("num_global_tiles: %d, bitmap v1 NNZ: %d, max_nnz_intile: %d \n", num_gtiles, val_count_v1, max_nnz_intile);
-    // print_bitmap_v3_results(Compressed_Val_cpu_v1, bitmap_TileOffsets_cpu_v1, bitmap_TileOffsets_global_cpu_v1, bitmap_cpu_v1, num_gtiles*2*8, num_gtiles, val_count_v1);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 0, 16);
-    // 
-    half* Compressed_Val_gpu_v1 = nullptr;
-    int* bitmap_TileOffsets_gpu_v1 = nullptr;
-    int* bitmap_TileOffsets_global_gpu_v1 = nullptr;
-    uint64_t* bitmap_gpu_v1 = nullptr;
-
-    cudaMalloc(&bitmap_TileOffsets_gpu_v1, sizeof(int) * (num_ltiles + 1)); // for (16*64 tile specific)
-    cudaMalloc(&bitmap_gpu_v1, sizeof(uint64_t) * (num_ltiles));
-    cudaMalloc(&bitmap_TileOffsets_global_gpu_v1, sizeof(int) * (num_gtiles+1));
-    if (val_count_v1 == 0)
-         val_count_v1 = 1;  // For 100% sparsity, NNZ = 0, malloc will return NULL
-    cudaMalloc(&Compressed_Val_gpu_v1, sizeof(half) * val_count_v1);
-    if (bitmap_TileOffsets_gpu_v1 == NULL || bitmap_gpu_v1 == NULL || Compressed_Val_gpu_v1 == NULL || bitmap_TileOffsets_global_gpu_v1 == NULL) {
-        printf("Error in malloc memory from device memory!\n");
-        exit(-1);
-    }
-    cudaMemcpy(bitmap_TileOffsets_gpu_v1, bitmap_TileOffsets_cpu_v1, sizeof(int) * (num_ltiles + 1), cudaMemcpyHostToDevice);
-    cudaMemcpy(bitmap_TileOffsets_global_gpu_v1, bitmap_TileOffsets_global_cpu_v1, sizeof(int) * (num_gtiles + 1), cudaMemcpyHostToDevice);
-    cudaMemcpy(bitmap_gpu_v1, bitmap_cpu_v1, sizeof(uint64_t) * num_ltiles, cudaMemcpyHostToDevice);
-    cudaMemcpy(Compressed_Val_gpu_v1, Compressed_Val_cpu_v1, sizeof(half) * val_count_v1, cudaMemcpyHostToDevice);
-    free(bitmap_TileOffsets_cpu_v1);
-    free(bitmap_cpu_v1);
-    free(Compressed_Val_cpu_v1);
-    free(bitmap_TileOffsets_global_cpu_v1);
-
-    printf("Done! Compressed A matrix for bitmap v1 GPU kernel.\n");
-    
-    printf("Launching bitmapv1 without Ahead of Time Sparse Data Reordering...\n");
-    Split_K = SPLIT_K;
-    printf("Split_K = %d\n", Split_K);
-    half* Reduction_Workspace_bitmapv1 = NULL;
-    cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace_bitmapv1), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
-    if (Reduction_Workspace_bitmapv1 == NULL) {
-        printf("Error in cudaMalloc\n");
-        exit(-1);
-    }
-    
-    for (int i = 0; i < WARM_UP_ITERATION; i++)
-        SpMM_SplitK_API_bitmap_v1(0,
-                        A,
-                        Compressed_Val_gpu_v1,
-                        bitmap_TileOffsets_global_gpu_v1,
-                        bitmap_gpu_v1,
-                        max_nnz_intile,
-                        B,
-                        D_SpMM_bitmapv1,
-                        M_GLOBAL,
-                        N_GLOBAL,
-                        K_GLOBAL,
-                        Reduction_Workspace_bitmapv1,
-                        Split_K);
-    cudaEventRecord(start);
-    for (int i = 0; i < BENCHMARK_ITERATION; i++)
-        SpMM_SplitK_API_bitmap_v1(0,
-                        A,
-                        Compressed_Val_gpu_v1,
-                        bitmap_TileOffsets_global_gpu_v1,
-                        bitmap_gpu_v1,
-                        max_nnz_intile,
-                        B,
-                        D_SpMM_bitmapv1,
-                        M_GLOBAL,
-                        N_GLOBAL,
-                        K_GLOBAL,
-                        Reduction_Workspace_bitmapv1,
-                        Split_K);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    checkLastCudaError(__LINE__);
-    // //
-    float milliseconds_SpMM_bitmapv1 = 0.0f;
-    cudaEventElapsedTime(&milliseconds_SpMM_bitmapv1, start, stop);
-    milliseconds_SpMM_bitmapv1 = milliseconds_SpMM_bitmapv1 / BENCHMARK_ITERATION;
-    float tflops_SpMM_bitmapv1 =
-        static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2) / (milliseconds_SpMM_bitmapv1 / 1000.))
-        / 1e12;
-    half* D_SpMM_hbitmapv1 = NULL;  // col major
-    D_SpMM_hbitmapv1       = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
-    cudaMemcpy(D_SpMM_hbitmapv1, D_SpMM_bitmapv1, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
-    cudaFree(D_SpMM_bitmapv1);
-    cudaFree(bitmap_TileOffsets_gpu_v1);
-    cudaFree(bitmap_TileOffsets_global_gpu_v1);
-    cudaFree(bitmap_gpu_v1);
-    cudaFree(Compressed_Val_gpu_v1);
-    cudaFree(Reduction_Workspace_bitmapv1);
-/////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-// bitmapv2
-////////////////////////////////////////////////////////////////////////////////////////////////
-    half* D_SpMM_bitmapv2 = NULL;
-    cudaMalloc(reinterpret_cast<void**>(&D_SpMM_bitmapv2), sizeof(half) * M_GLOBAL * N_GLOBAL);
-    if (D_SpMM_bitmapv2 == NULL) {
-        printf("Error in spmm_test.cu: line %d cudaMalloc falied\n", __LINE__);
-        exit(-1);
-    }
-    cudaMemset(D_SpMM_bitmapv2, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
-
-    // 定义输出指针
-    half* Compressed_Val_cpu_v2 = nullptr;
-    int* bitmap_TileOffsets_cpu_v2 = nullptr;
-    int* bitmap_TileOffsets_global_cpu_v2 = nullptr;
-    uint64_t* bitmap_cpu_v2 = nullptr;
-    int max_nnz_intilev2 = 0;
-    // 调用 InitSparseMatrixA_bitmap 函数
-    // auto num_gtiles = InitSparseMatrixA_bitmap_v3(A_h, M_GLOBAL, K_GLOBAL, 8, 16, 8, 64, &Compressed_Val_cpu_v2, &bitmap_TileOffsets_cpu_v2, &bitmap_TileOffsets_global_cpu_v2, &bitmap_cpu_v2,max_nnz_intilev2);
-    auto num_gtilesv2 = InitSparseMatrixA_bitmap_v5(A_h, M_GLOBAL, K_GLOBAL, 8, 64, 8, 64, &Compressed_Val_cpu_v2, &bitmap_TileOffsets_cpu_v2, &bitmap_TileOffsets_global_cpu_v2, &bitmap_cpu_v2, max_nnz_intilev2);
-    auto local_tile_num = 8*8;
-    auto num_ltilesv2 = num_gtilesv2*local_tile_num;
-   
-    int val_count_v2 = bitmap_TileOffsets_global_cpu_v2[num_gtilesv2]; // 最后一个 tile 的偏移即为压缩后的非零值总数
-    // 将 max_nnz_intilev2 调整为 64 的倍数
-    if (max_nnz_intilev2 % 64 != 0) {
-        max_nnz_intilev2 = ((max_nnz_intilev2 / 64) + 1) * 64;
-    }
-
-    // printf("num_global_tiles: %d, bitmap v2 NNZ: %d, max_nnz_intilev2: %d \n", num_gtilesv2, val_count_v2, max_nnz_intilev2);
-    // print_bitmap_v3_results(Compressed_Val_cpu_v2, bitmap_TileOffsets_cpu_v2, bitmap_TileOffsets_global_cpu_v2, bitmap_cpu_v2, num_gtilesv2*local_tile_num, num_gtilesv2, val_count_v2);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 0, 0);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 8, 0);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 16, 0);
-    // 
-    half* Compressed_Val_gpu_v2 = nullptr;
-    int* bitmap_TileOffsets_gpu_v2 = nullptr;
-    int* bitmap_TileOffsets_global_gpu_v2 = nullptr;
-    uint64_t* bitmap_gpu_v2 = nullptr;
-
-    cudaMalloc(&bitmap_TileOffsets_gpu_v2, sizeof(int) * (num_ltilesv2 + 1)); // for (16*64 tile specific)
-    cudaMalloc(&bitmap_gpu_v2, sizeof(uint64_t) * (num_ltilesv2));
-    cudaMalloc(&bitmap_TileOffsets_global_gpu_v2, sizeof(int) * (num_gtilesv2+1));
-    if (val_count_v2 == 0)
-         val_count_v2 = 1;  // For 100% sparsity, NNZ = 0, malloc will return NULL
-    cudaMalloc(&Compressed_Val_gpu_v2, sizeof(half) * val_count_v2);
-    if (bitmap_TileOffsets_gpu_v2 == NULL || bitmap_gpu_v2 == NULL || Compressed_Val_gpu_v2 == NULL || bitmap_TileOffsets_global_gpu_v2 == NULL) {
-        printf("Error in malloc memory from device memory!\n");
-        exit(-1);
-    }
-    cudaMemcpy(bitmap_TileOffsets_gpu_v2, bitmap_TileOffsets_cpu_v2, sizeof(int) * (num_ltilesv2 + 1), cudaMemcpyHostToDevice);
-    cudaMemcpy(bitmap_TileOffsets_global_gpu_v2, bitmap_TileOffsets_global_cpu_v2, sizeof(int) * (num_gtilesv2 + 1), cudaMemcpyHostToDevice);
-    cudaMemcpy(bitmap_gpu_v2, bitmap_cpu_v2, sizeof(uint64_t) * num_ltilesv2, cudaMemcpyHostToDevice);
-    cudaMemcpy(Compressed_Val_gpu_v2, Compressed_Val_cpu_v2, sizeof(half) * val_count_v2, cudaMemcpyHostToDevice);
-    free(bitmap_TileOffsets_cpu_v2);
-    free(bitmap_cpu_v2);
-    free(Compressed_Val_cpu_v2);
-    free(bitmap_TileOffsets_global_cpu_v2);
-
-    printf("Done! Compressed A matrix for bitmap v2 GPU kernel.\n");
-    
-    printf("Launching bitmapv2 without Ahead of Time Sparse Data Reordering...\n");
-    Split_K = SPLIT_K;
-    printf("Split_K = %d\n", Split_K);
-    half* Reduction_Workspace_bitmapv2 = NULL;
-    cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace_bitmapv2), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
-    if (Reduction_Workspace_bitmapv2 == NULL) {
-        printf("Error in cudaMalloc\n");
-        exit(-1);
-    }
-    
-    for (int i = 0; i < WARM_UP_ITERATION; i++)
-        SpMM_SplitK_API_bitmap_v2(0,
-                        A,
-                        Compressed_Val_gpu_v2,
-                        bitmap_TileOffsets_global_gpu_v2,
-                        bitmap_gpu_v2,
-                        max_nnz_intilev2,
-                        B,
-                        D_SpMM_bitmapv2,
-                        M_GLOBAL,
-                        N_GLOBAL,
-                        K_GLOBAL,
-                        Reduction_Workspace_bitmapv2,
-                        Split_K);
-    cudaEventRecord(start);
-    for (int i = 0; i < BENCHMARK_ITERATION; i++)
-        SpMM_SplitK_API_bitmap_v2(0,
-                        A,
-                        Compressed_Val_gpu_v2,
-                        bitmap_TileOffsets_global_gpu_v2,
-                        bitmap_gpu_v2,
-                        max_nnz_intilev2,
-                        B,
-                        D_SpMM_bitmapv2,
-                        M_GLOBAL,
-                        N_GLOBAL,
-                        K_GLOBAL,
-                        Reduction_Workspace_bitmapv2,
-                        Split_K);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    checkLastCudaError(__LINE__);
-    // //
-    float milliseconds_SpMM_bitmapv2 = 0.0f;
-    cudaEventElapsedTime(&milliseconds_SpMM_bitmapv2, start, stop);
-    milliseconds_SpMM_bitmapv2 = milliseconds_SpMM_bitmapv2 / BENCHMARK_ITERATION;
-    float tflops_SpMM_bitmapv2 =
-        static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2) / (milliseconds_SpMM_bitmapv2 / 1000.))
-        / 1e12;
-    half* D_SpMM_hbitmapv2 = NULL;  // col major
-    D_SpMM_hbitmapv2       = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
-    cudaMemcpy(D_SpMM_hbitmapv2, D_SpMM_bitmapv2, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
-    cudaFree(D_SpMM_bitmapv2);
-    cudaFree(bitmap_TileOffsets_gpu_v2);
-    cudaFree(bitmap_TileOffsets_global_gpu_v2);
-    cudaFree(bitmap_gpu_v2);
-    cudaFree(Compressed_Val_gpu_v2);
-    cudaFree(Reduction_Workspace_bitmapv2);
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
+auto Split_K = SPLIT_K;
 
 // bitmapv3
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -747,8 +256,6 @@ int main(int argc, char** argv)
     auto median_tile_numv3 = 4*1;
     auto num_ltilesv3 = num_gtilesv3*local_tile_numv3;
     auto num_mtilesv3 = num_gtilesv3*median_tile_numv3;
-
-
     int val_count_v3 = bitmap_TileOffsets_global_cpu_v3[num_gtilesv3]; // 最后一个 tile 的偏移即为压缩后的非零值总数
     int val_count_median_v3 = bitmap_TileOffsets_median_cpu_v3[num_mtilesv3]; // 最后一个 tile 的偏移即为压缩后的非零值总数
     // 将 max_nnz_intilev3 调整为 64 的倍数
@@ -757,13 +264,6 @@ int main(int argc, char** argv)
     }
 
     printf("num_global_tiles: %d, bitmap v3 NNZ: %d, bitmap v3 median layer NNZ: %d,  max_nnz_intilev3: %d \n", num_gtilesv3, val_count_v3, val_count_median_v3, max_nnz_intilev3);
-    // print_bitmap_v6_results(Compressed_Val_cpu_v3, bitmap_TileOffsets_cpu_v3, bitmap_TileOffsets_median_cpu_v3, bitmap_TileOffsets_global_cpu_v3, bitmap_cpu_v3, num_ltilesv3, num_mtilesv3, num_gtilesv3, val_count_v3);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 0, 0);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 8, 0);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 16, 0);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 24, 0);
-    // PrintMatrix("A", A_h, M_GLOBAL, K_GLOBAL, 8, 8, 32, 0);
-    // 
     half* Compressed_Val_gpu_v3 = nullptr;
     int* bitmap_TileOffsets_gpu_v3 = nullptr;
     int* bitmap_TileOffsets_median_gpu_v3 = nullptr;
@@ -802,7 +302,6 @@ int main(int argc, char** argv)
         printf("Error in cudaMalloc\n");
         exit(-1);
     }
-    // 创建GPU端的max_nnz_intilev3
     int* max_nnz_intilev3_gpu = nullptr;
     cudaMalloc(&max_nnz_intilev3_gpu, sizeof(int));
     if (max_nnz_intilev3_gpu == NULL) {
@@ -902,7 +401,6 @@ int main(int argc, char** argv)
     //
     printf("Launching Flash-LLM without Ahead of Time Sparse Data Reordering...\n");
     Split_K = SPLIT_K;
-    // printf("Split_K = %d\n", Split_K);
     half* Reduction_Workspace = NULL;
     cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
     if (Reduction_Workspace == NULL) {
@@ -953,37 +451,18 @@ int main(int argc, char** argv)
     cudaFree(TileOffsets_GPU);
     cudaFree(Reduction_Workspace);
     /////////////////////////////////////////////////////////////////////////////////////////////////
-#endif
 
+    double totalError_SpMM2 = 0.0;
+    double totalError_SpMM_bitmapv3 = 0.0;
 
-
-// #ifdef USE_FLASH_LLM
-    double totalError_SpMM2 = ComputeTotalError(D_cublas_h, D_SpMM_h2, M_GLOBAL, N_GLOBAL);
-    // double totalError_SpMM1 = ComputeTotalError(D_cublas_h, D_SpMM_h1, M_GLOBAL, N_GLOBAL);
-    // double totalError_SpMM_bitmap = ComputeTotalError(D_cublas_h, D_SpMM_hbitmap, M_GLOBAL, N_GLOBAL);
-    double totalError_SpMM_bitmapv1 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv1, M_GLOBAL, N_GLOBAL);
-    double totalError_SpMM_bitmapv2 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv2, M_GLOBAL, N_GLOBAL);
-    double totalError_SpMM_bitmapv3 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
-    PrintMismatchV1("bitmapv3", 10, 0.0, D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
-    PrintMatrixVec("bitmapv3", D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL, 16, 16);
-    PrintMatrixVec("cublas", D_cublas_h, M_GLOBAL, N_GLOBAL, 32, 8);
-    PrintMatrixVec("flash", D_SpMM_h2, M_GLOBAL, N_GLOBAL, 32, 8);
+    totalError_SpMM2 = ComputeTotalError(D_cublas_h, D_SpMM_h2, M_GLOBAL, N_GLOBAL);
+    totalError_SpMM_bitmapv3 = ComputeTotalError(D_cublas_h, D_SpMM_hbitmapv3, M_GLOBAL, N_GLOBAL);
     
     free(D_SpMM_h2);
-    // free(D_SpMM_h1);
-    // free(D_SpMM_hbitmap);
-    free(D_SpMM_hbitmapv1);
-    free(D_SpMM_hbitmapv2);
     free(D_SpMM_hbitmapv3);
     PrintPerformance("FlashLLM_v1", milliseconds_SpMM2, tflops_SpMM2, totalError_SpMM2);
-    // PrintPerformance("FlashLLM_2vs4", milliseconds_SpMM1, tflops_SpMM1, totalError_SpMM1);
-    // PrintPerformance("FlashLLM_bitmap", milliseconds_SpMM_bitmap, tflops_SpMM_bitmap, totalError_SpMM_bitmap);
-    PrintPerformance("FlashLLM_bitmapv1", milliseconds_SpMM_bitmapv1, tflops_SpMM_bitmapv1, totalError_SpMM_bitmapv1);
-    PrintPerformance("FlashLLM_bitmapv2", milliseconds_SpMM_bitmapv2, tflops_SpMM_bitmapv2, totalError_SpMM_bitmapv2);
     PrintPerformance("FlashLLM_bitmapv3", milliseconds_SpMM_bitmapv3, tflops_SpMM_bitmapv3, totalError_SpMM_bitmapv3);
     PrintPerformance("CuBlas_TC", milliseconds_cublas_tc, tflops_cublas_tc, 0.0);
-    // PrintPerformance("FlashLLM_v2", milliseconds_SpMM, tflops_SpMM, totalError_SpMM);
-// #endif
 
     free(D_cublas_h);
     free(A_h);
@@ -992,6 +471,11 @@ int main(int argc, char** argv)
     cudaFree(A);
     cudaFree(B);
     cudaFree(B_Transposed);
-
+    SavePerformanceData("main_res.csv",
+        M_GLOBAL, K_GLOBAL, N_GLOBAL, 
+        SPLIT_K, MATRIX_A_PRUNING_PERCENTAGE,
+        milliseconds_cublas_tc, tflops_cublas_tc,
+        milliseconds_SpMM2, tflops_SpMM2,
+        milliseconds_SpMM_bitmapv3, tflops_SpMM_bitmapv3);
     return 0;
 }

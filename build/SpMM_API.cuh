@@ -1,4 +1,5 @@
 /***************************************************************************
+ * Copyright 2025 The SpInfer Authors. All rights reserved.
  * Copyright 2023 The FLash-LLM Authors. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,7 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ***************************************************************************/
-
+// Adapted from https://github.com/AlibabaResearch/flash-llm/blob/main/build/SpMM_API.cuh
 #include <cuda.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
@@ -28,31 +29,6 @@ static void SpMM_SplitK_Kernel_Ex(cudaStream_t stream,
                                   const int    N_Global,
                                   const int    K_Global,
                                   int          Split_K);
-template<typename TilingConfig, typename SparseKernelConfig>
-static void SpMM_SplitK_Kernel_Exv1(cudaStream_t stream,
-                                  const half*  A,
-                                  const uint4* Compressed_A,
-                                  const int*   TileOffsets,
-                                  const half*  B,
-                                  half*        Reduction_Workspace,
-                                  const int    M_Global,
-                                  const int    N_Global,
-                                  const int    K_Global,
-                                  int          Split_K);
-                                  
-template<typename TilingConfig, typename SparseKernelConfig>
-static void SpMM_SplitK_Kernel_Ex_bitmap(cudaStream_t stream,
-                                  const half*  A,
-                                  const half* Compressed_A,
-                                  const int*   TileOffsets,
-                                  const uint64_t*   bitmap,
-                                  const half*  B,
-                                  half*        Reduction_Workspace,
-                                  const int    M_Global,
-                                  const int    N_Global,
-                                  const int    K_Global,
-                                  int          Split_K);
-
 /*
 half* Reduction_Workspace:  1. Requiring an extra memory space in device memory for un-reducted intermediate output
 tensors
@@ -70,57 +46,7 @@ cudaError_t SpMM_SplitK_API(cudaStream_t stream,
                             const int    K_Global,
                             half*        Reduction_Workspace,  // Identical workspace for all SpMM kernel launches
                             int          Split_K);
-cudaError_t SpMM_SplitK_APIv1(cudaStream_t stream,
-                            const half*  A,
-                            const uint32_t* MetaE,
-                            const uint4* Compressed_A,
-                            const int*   TileOffsets,
-                            const half*  B,
-                            half*        C,
-                            const int    M_Global,
-                            const int    N_Global,
-                            const int    K_Global,
-                            half*        Reduction_Workspace,  // Identical workspace for all SpMM kernel launches
-                            int          Split_K);
 
-cudaError_t SpMM_SplitK_API_bitmap(cudaStream_t stream,
-                                const half*  A,
-                                const half*  Compressed_A,
-                                const int*   TileOffsets,
-                                const uint64_t* bitmap,
-                                const half*  B,
-                                half*        C,
-                                const int    M_Global,
-                                const int    N_Global,
-                                const int    K_Global,
-                                half*        Reduction_Workspace,  // Identical workspace for all SpMM kernel launchesSpMM_SplitK_Kernel_Ex_bitmap
-                                int          Split_K);
-cudaError_t SpMM_SplitK_API_bitmap_v1(cudaStream_t stream,
-                                const half*  A,
-                                const half*  Compressed_A,
-                                const int*   TileOffsets,
-                                const uint64_t* bitmap,
-                                int max_nnz_intile,
-                                const half*  B,
-                                half*        C,
-                                const int    M_Global,
-                                const int    N_Global,
-                                const int    K_Global,
-                                half*        Reduction_Workspace,  // Identical workspace for all SpMM kernel launchesSpMM_SplitK_Kernel_Ex_bitmap
-                                int          Split_K);
-cudaError_t SpMM_SplitK_API_bitmap_v2(cudaStream_t stream,
-                                    const half*  A,
-                                    const half*  Compressed_A,
-                                    const int*   TileOffsets,
-                                    const uint64_t* bitmap,
-                                    int max_nnz_intile,
-                                    const half*  B,
-                                    half*        C,
-                                    const int    M_Global,
-                                    const int    N_Global,
-                                    const int    K_Global,
-                                    half*        Reduction_Workspace,  // Identical workspace for all SpMM kernel launchesSpMM_SplitK_Kernel_Ex_bitmap
-                                    int          Split_K);
 cudaError_t SpMM_SplitK_API_bitmap_v3(cudaStream_t stream,
                                     const half*  A,
                                     const half*  Compressed_A,
