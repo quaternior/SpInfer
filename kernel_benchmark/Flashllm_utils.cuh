@@ -477,6 +477,72 @@ __device__ __forceinline__ void SpMM_CopyFromGlobalToShared(int          tid,
     smem_int_ptr[tid] = tmp1 + tmp2;
 }
 
+// Init Shared Memory to 0
+template<typename TilingConfig>
+__device__ __forceinline__ void SpMM_InitSharedMemory(half* __restrict__ SharedPTR)
+{
+    int lane_id = threadIdx.x % WARP_SIZE;
+    int warp_id = threadIdx.x / WARP_SIZE;
+    //
+    static_assert(TilingConfig::TILE_M % TilingConfig::BLOCK_WARPS == 0,
+                  "TILE_M must be an integer multiple to BLOCK_WARPS");
+    constexpr int RowsPerWarp = TilingConfig::TILE_M / TilingConfig::BLOCK_WARPS;
+    //
+    static_assert(TILE_K == 64, "For now, TILE_K is assumed to be 64.\n");
+    const int StartRowNum         = warp_id * RowsPerWarp;
+    half*     SharedPTR_PerThread = SharedPTR + StartRowNum * TILE_K + HALF_PER_128B * lane_id;
+    //
+    static_assert(RowsPerWarp % (WARP_SIZE * HALF_PER_128B / TILE_K) == 0,
+                  "RowsPerWarp%(WARP_SIZE*HALF_PER_128B/TILE_K) should be 0\n");
+    constexpr int ITERATIONS_PER_THREAD = RowsPerWarp / (WARP_SIZE * HALF_PER_128B / TILE_K);
+#pragma unroll
+    for (int i = 0; i < ITERATIONS_PER_THREAD; i++) {
+        cp_async_ignore_src<16>(SharedPTR_PerThread, (half*)NULL);
+        SharedPTR_PerThread += WARP_SIZE * HALF_PER_128B;
+    }
+}
+
+template<typename TilingConfig, typename SparseKernelConfig>
+__device__ __forceinline__ void SpMM_DecompressFromRegisterToShared(half* __restrict__ SharedPTR1,
+                                                                    uint32_t* Registers_For_SparseTiles1,
+                                                                    uint32_t  NNZ_ThreadLocal1,
+                                                                    half* __restrict__ SharedPTR2,
+                                                                    uint32_t* Registers_For_SparseTiles2,
+                                                                    uint32_t  NNZ_ThreadLocal2)
+{
+    int Max_NNZ_ThreadLocal =
+        (TilingConfig::TILE_M == 256) ? max(NNZ_ThreadLocal1, NNZ_ThreadLocal2) : NNZ_ThreadLocal1;
+#pragma unroll
+    for (int i = 0; i < SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / SparseKernelConfig::VECTOR_SIZE; i++) {
+        if (i >= Max_NNZ_ThreadLocal)
+            break;
+
+        if (i < NNZ_ThreadLocal1
+            || (TilingConfig::TILE_M != 256))  // if TILE_M!=256, not need to compare since we have break();
+#pragma unroll
+            for (int j = 0; j < SparseKernelConfig::VECTOR_SIZE; j++) {
+                half* half_ptr =
+                    reinterpret_cast<half*>(&(Registers_For_SparseTiles1[i * SparseKernelConfig::VECTOR_SIZE + j]));
+                short* short_ptr  = reinterpret_cast<short*>(half_ptr + 1);
+                half   value      = *half_ptr;
+                short  index      = *short_ptr;
+                SharedPTR1[index] = value;
+            }
+
+        if (TilingConfig::TILE_M == 256)
+            if (i < NNZ_ThreadLocal2)
+#pragma unroll
+                for (int j = 0; j < SparseKernelConfig::VECTOR_SIZE; j++) {
+                    half* half_ptr =
+                        reinterpret_cast<half*>(&(Registers_For_SparseTiles2[i * SparseKernelConfig::VECTOR_SIZE + j]));
+                    short* short_ptr  = reinterpret_cast<short*>(half_ptr + 1);
+                    half   value      = *half_ptr;
+                    short  index      = *short_ptr;
+                    SharedPTR2[index] = value;
+                }
+    }
+}
+
 
 template<typename TilingConfig, typename SparseKernelConfig>
 __global__ void SpMM_Kernel(const half*  A,
@@ -1224,70 +1290,6 @@ extern "C" void GenSparseMatrixBinFile(char* DenseMatrixFileName,
 
 
 
-// Init Shared Memory to 0
-template<typename TilingConfig>
-__device__ __forceinline__ void SpMM_InitSharedMemory(half* __restrict__ SharedPTR)
-{
-    int lane_id = threadIdx.x % WARP_SIZE;
-    int warp_id = threadIdx.x / WARP_SIZE;
-    //
-    static_assert(TilingConfig::TILE_M % TilingConfig::BLOCK_WARPS == 0,
-                  "TILE_M must be an integer multiple to BLOCK_WARPS");
-    constexpr int RowsPerWarp = TilingConfig::TILE_M / TilingConfig::BLOCK_WARPS;
-    //
-    static_assert(TILE_K == 64, "For now, TILE_K is assumed to be 64.\n");
-    const int StartRowNum         = warp_id * RowsPerWarp;
-    half*     SharedPTR_PerThread = SharedPTR + StartRowNum * TILE_K + HALF_PER_128B * lane_id;
-    //
-    static_assert(RowsPerWarp % (WARP_SIZE * HALF_PER_128B / TILE_K) == 0,
-                  "RowsPerWarp%(WARP_SIZE*HALF_PER_128B/TILE_K) should be 0\n");
-    constexpr int ITERATIONS_PER_THREAD = RowsPerWarp / (WARP_SIZE * HALF_PER_128B / TILE_K);
-#pragma unroll
-    for (int i = 0; i < ITERATIONS_PER_THREAD; i++) {
-        cp_async_ignore_src<16>(SharedPTR_PerThread, (half*)NULL);
-        SharedPTR_PerThread += WARP_SIZE * HALF_PER_128B;
-    }
-}
 
-template<typename TilingConfig, typename SparseKernelConfig>
-__device__ __forceinline__ void SpMM_DecompressFromRegisterToShared(half* __restrict__ SharedPTR1,
-                                                                    uint32_t* Registers_For_SparseTiles1,
-                                                                    uint32_t  NNZ_ThreadLocal1,
-                                                                    half* __restrict__ SharedPTR2,
-                                                                    uint32_t* Registers_For_SparseTiles2,
-                                                                    uint32_t  NNZ_ThreadLocal2)
-{
-    int Max_NNZ_ThreadLocal =
-        (TilingConfig::TILE_M == 256) ? max(NNZ_ThreadLocal1, NNZ_ThreadLocal2) : NNZ_ThreadLocal1;
-#pragma unroll
-    for (int i = 0; i < SparseKernelConfig::NUM_REG_FOR_SPARSE_KERNEL / SparseKernelConfig::VECTOR_SIZE; i++) {
-        if (i >= Max_NNZ_ThreadLocal)
-            break;
-
-        if (i < NNZ_ThreadLocal1
-            || (TilingConfig::TILE_M != 256))  // if TILE_M!=256, not need to compare since we have break();
-#pragma unroll
-            for (int j = 0; j < SparseKernelConfig::VECTOR_SIZE; j++) {
-                half* half_ptr =
-                    reinterpret_cast<half*>(&(Registers_For_SparseTiles1[i * SparseKernelConfig::VECTOR_SIZE + j]));
-                short* short_ptr  = reinterpret_cast<short*>(half_ptr + 1);
-                half   value      = *half_ptr;
-                short  index      = *short_ptr;
-                SharedPTR1[index] = value;
-            }
-
-        if (TilingConfig::TILE_M == 256)
-            if (i < NNZ_ThreadLocal2)
-#pragma unroll
-                for (int j = 0; j < SparseKernelConfig::VECTOR_SIZE; j++) {
-                    half* half_ptr =
-                        reinterpret_cast<half*>(&(Registers_For_SparseTiles2[i * SparseKernelConfig::VECTOR_SIZE + j]));
-                    short* short_ptr  = reinterpret_cast<short*>(half_ptr + 1);
-                    half   value      = *half_ptr;
-                    short  index      = *short_ptr;
-                    SharedPTR2[index] = value;
-                }
-    }
-}
 
 #endif
