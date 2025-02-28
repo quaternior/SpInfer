@@ -5,24 +5,18 @@ N=(8 16 32)
 SPLIT_K=(7 7 3 3 4 5 5 7 7 3 7 7 7 7 7 7 3 6 7 1 3 4 3 7 5 2 5 2 6 3 6)
 SPARSITY=(40 50 60 70)
 
-# M=(8192 4096 32000)
-# K=(29568 4096 5120)
-# N=(8 16 32)
-# SPLIT_K=(7 7 3)
-# SPARSITY=(40 50 60 70)
 
-# 确保 M 和 K 数组长度相同
 if [ ${#M[@]} -ne ${#K[@]} ]; then
     echo "Error: M and K arrays must have the same length."
     exit 1
 fi
-# 确保 M 和 sK 数组长度相同
+
 if [ ${#M[@]} -ne ${#SPLIT_K[@]} ]; then
     echo "Error: M and SK arrays must have the same length."
     exit 1
 fi
 
-# 主循环
+
 for ((i=0; i<${#M[@]}; i++)); do
     m=${M[i]}
     k=${K[i]}

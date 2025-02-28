@@ -10,7 +10,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ***************************************************************************/
-
 #include "./sputnik_utils.h"
 #include "sputnik/sputnik.h"
 #include <cusparseLt.h>  // cusparseLt header
