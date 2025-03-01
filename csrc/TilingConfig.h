@@ -1,4 +1,5 @@
 /***************************************************************************
+ * Copyright 2025 The SpInfer Authors. All rights reserved.
  * Copyright 2023 The FLash-LLM Authors. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,10 +14,6 @@
  // Extended from https://github.com/AlibabaResearch/flash-llm/blob/main/csrc/TilingConfig.cuh
 #ifndef TILINGCONFIG_H
 #define TILINGCONFIG_H
-
-//#define DEBUG_MODE 1
-#define RELEASE_MODE 1
-
 // Fixed Parameters
 #define MMA_M 16
 #define MMA_N 16

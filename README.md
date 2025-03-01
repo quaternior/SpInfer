@@ -60,7 +60,7 @@ Check the results in raw csv files and the reproduced Figure10.png (Fig. 10).
 
 ## 5. Running End-to-end model.
 #### 5.1 Building
-Follow the steps in **[SpInfer/docs/3_LLMInferenceExample](https://github.com/xxyux/SpInfer/blob/main/docs/3_LLMInferenceExample.md#llm-inference-example)**
+Follow the steps in **[SpInfer/docs/LLMInferenceExample](https://github.com/xxyux/SpInfer/blob/main/docs/LLMInferenceExample.md#llm-inference-example)**
 + Building Faster-Transformer with (SpInfer, Flash-llm or Standard) integration
 + Downloading & Converting OPT models
 + Configuration

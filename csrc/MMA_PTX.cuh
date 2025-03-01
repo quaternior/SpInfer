@@ -11,7 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ***************************************************************************/
-// Extended from https://github.com/AlibabaResearch/flash-llm/blob/main/csrc/MMA_PTX.cuh
+// Extended from CUTLASS and https://github.com/AlibabaResearch/flash-llm/blob/main/csrc/MMA_PTX.cuh
 #include "TilingConfig.h"
 
 template<int NumOfTensors>

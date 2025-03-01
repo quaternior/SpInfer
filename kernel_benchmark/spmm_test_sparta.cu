@@ -1,4 +1,5 @@
 /***************************************************************************
+ * Copyright 2025 The SpInfer Authors. All rights reserved.
  * Copyright 2023 The FLash-LLM Authors. All rights reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +33,6 @@ int main(int argc, char** argv)
     int N_GLOBAL                    = atoi(argv[3]);
     int MATRIX_A_PRUNING_PERCENTAGE = atoi(argv[4]);
     int SPLIT_K                     = atoi(argv[5]);
-    cublasStatus_t cublas_status;
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);

@@ -11,10 +11,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ***************************************************************************/
-
-#define USE_CUBLAS
-#define USE_FLASH_LLM
-
 #include "./spmm_test_utils.h"
 #include <assert.h>
 #include <cublas_v2.h>
@@ -23,19 +19,9 @@
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
 #include <stdio.h>
-
-#ifdef USE_FLASH_LLM
 #include "SpMM_API.cuh"
-#endif
+#include "./Flashllm_utils.cuh"
 
-#ifdef USE_SPUTNIK
-#include "./sputnik_utils.h"
-#include "sputnik/sputnik.h"
-#endif
-
-#ifdef USE_SPARTA
-#include "sparTA.h"
-#endif
 
 int main(int argc, char** argv)
 {
@@ -49,8 +35,6 @@ int main(int argc, char** argv)
     int MATRIX_A_PRUNING_PERCENTAGE = atoi(argv[4]);
     int SPLIT_K                     = atoi(argv[5]);
     cublasStatus_t cublas_status;
-    // cusparseStatus_t  cusparse_status;
-    // cudaError_t       cuda_error;
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -90,11 +74,8 @@ int main(int argc, char** argv)
     cudaMemcpy(B_Transposed, B_Transposed_h, sizeof(half) * N_GLOBAL * K_GLOBAL, cudaMemcpyHostToDevice);
     checkLastCudaError(__LINE__);
  
- 
- 
-
-    //#ifdef USE_CUBLAS
-    /////////////////////////////////////////////////////////////////////////////////////////////////
+// CUBLAS
+/////////////////////////////////////////////////////////////////////////////////////////////////
     printf("Launching CuBlas...\n");
     half* D_cublas = NULL;
     cudaMalloc(reinterpret_cast<void**>(&D_cublas), sizeof(half) * M_GLOBAL * N_GLOBAL);
@@ -229,11 +210,96 @@ int main(int argc, char** argv)
     }
     cudaMemcpy(D_cublas_h, D_cublas, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
     cudaFree(D_cublas);
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-//#endif
-auto Split_K = SPLIT_K;
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
-// bitmapv3
+    auto Split_K = SPLIT_K;
+// Flash-llm
+////////////////////////////////////////////////////////////////////////////////////////////////
+    uint32_t* NZWeights_CPU   = NULL;
+    int*      TileOffsets_CPU = NULL;
+    // int Split_K = SPLIT_K;
+    half* D_SpMM2 = NULL;
+    cudaMalloc(reinterpret_cast<void**>(&D_SpMM2), sizeof(half) * M_GLOBAL * N_GLOBAL);
+    if (D_SpMM2 == NULL) {
+        printf("Error in spmm_test.cu: line %d cudaMalloc falied\n", __LINE__);
+        exit(-1);
+    }
+    cudaMemset(D_SpMM2, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
+    auto NumOffsets = flash_llm_utils::InitSparseMatrixA_API_NoReorder(A_h, M_GLOBAL, N_GLOBAL, K_GLOBAL, &NZWeights_CPU, &TileOffsets_CPU);
+    auto NNZ        = TileOffsets_CPU[NumOffsets - 1] * 4;  // VectorSize = 4
+    printf("NumOffsets: %d, NNZ: %d\n", NumOffsets, NNZ);
+    //
+    uint32_t* NZWeights_GPU   = NULL;
+    int*  TileOffsets_GPU = NULL;
+    cudaMalloc(&TileOffsets_GPU, sizeof(int) * NumOffsets);
+    if (NNZ == 0)
+        NNZ = 1;  // For 100% sparsity, NNZ = 0, malloc will return NULL
+    cudaMalloc(&NZWeights_GPU, sizeof(uint32_t) * NNZ);
+    if (TileOffsets_GPU == NULL || NZWeights_GPU == NULL) {
+        printf("Error in malloc memory from device memory!\n");
+        exit(-1);
+    }
+    cudaMemcpy(NZWeights_GPU, NZWeights_CPU, sizeof(uint32_t) * NNZ, cudaMemcpyHostToDevice);
+    cudaMemcpy(TileOffsets_GPU, TileOffsets_CPU, sizeof(int) * NumOffsets, cudaMemcpyHostToDevice);
+    free(TileOffsets_CPU);
+    free(NZWeights_CPU);
+    // printf("Done! Compressed A matrix for GPU kernel: MM_Sparse_TC.\n");
+    //
+    printf("Launching Flash-LLM without Ahead of Time Sparse Data Reordering...\n");
+    Split_K = SPLIT_K;
+    half* Reduction_Workspace = NULL;
+    cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
+    if (Reduction_Workspace == NULL) {
+        printf("Error in cudaMalloc\n");
+        exit(-1);
+    }
+    //
+    for (int i = 0; i < WARM_UP_ITERATION; i++)
+        flash_llm_utils::SpMM_SplitK_API(0,
+                        A,
+                        reinterpret_cast<uint4*>(NZWeights_GPU),
+                        TileOffsets_GPU,
+                        B,
+                        D_SpMM2,
+                        M_GLOBAL,
+                        N_GLOBAL,
+                        K_GLOBAL,
+                        Reduction_Workspace,
+                        Split_K);
+    cudaEventRecord(start);
+    for (int i = 0; i < BENCHMARK_ITERATION; i++)
+        flash_llm_utils::SpMM_SplitK_API(0,
+                        A,
+                        reinterpret_cast<uint4*>(NZWeights_GPU),
+                        TileOffsets_GPU,
+                        B,
+                        D_SpMM2,
+                        M_GLOBAL,
+                        N_GLOBAL,
+                        K_GLOBAL,
+                        Reduction_Workspace,
+                        Split_K);
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    checkLastCudaError(__LINE__);
+    //
+    float milliseconds_SpMM2 = 0.0f;
+    cudaEventElapsedTime(&milliseconds_SpMM2, start, stop);
+    milliseconds_SpMM2 = milliseconds_SpMM2 / BENCHMARK_ITERATION;
+    float tflops_SpMM2 =
+        static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2) / (milliseconds_SpMM2 / 1000.))
+        / 1e12;
+    half* D_SpMM_h2 = NULL;  // col major
+    D_SpMM_h2       = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
+    cudaMemcpy(D_SpMM_h2, D_SpMM2, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
+    cudaFree(D_SpMM2);
+    cudaFree(NZWeights_GPU);
+    cudaFree(TileOffsets_GPU);
+    cudaFree(Reduction_Workspace);
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// SpInfer
 ////////////////////////////////////////////////////////////////////////////////////////////////
     half* D_SpMM_bitmapv3 = NULL;
     cudaMalloc(reinterpret_cast<void**>(&D_SpMM_bitmapv3), sizeof(half) * M_GLOBAL * N_GLOBAL);
@@ -243,33 +309,32 @@ auto Split_K = SPLIT_K;
     }
     cudaMemset(D_SpMM_bitmapv3, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
 
-    // 定义输出指针
+    // Define the output pointer
     half* Compressed_Val_cpu_v3 = nullptr;
     int* bitmap_TileOffsets_cpu_v3 = nullptr;
     int* bitmap_TileOffsets_median_cpu_v3 = nullptr;
     int* bitmap_TileOffsets_global_cpu_v3 = nullptr;
     uint64_t* bitmap_cpu_v3 = nullptr;
     int max_nnz_intilev3 = 0;
-    // 调用 InitSparseMatrixA_bitmap_v6 函数
+    // Call the InitSparseMatrixA_bitmap_v6 function
     auto num_gtilesv3 = InitSparseMatrixA_bitmap_v6(A_h, M_GLOBAL, K_GLOBAL, 8, 16, 64, 8, 64, 64, &Compressed_Val_cpu_v3, &bitmap_TileOffsets_cpu_v3, &bitmap_TileOffsets_median_cpu_v3, &bitmap_TileOffsets_global_cpu_v3, &bitmap_cpu_v3, max_nnz_intilev3);
     auto local_tile_numv3 = 8*8;
     auto median_tile_numv3 = 4*1;
     auto num_ltilesv3 = num_gtilesv3*local_tile_numv3;
     auto num_mtilesv3 = num_gtilesv3*median_tile_numv3;
-    int val_count_v3 = bitmap_TileOffsets_global_cpu_v3[num_gtilesv3]; // 最后一个 tile 的偏移即为压缩后的非零值总数
-    int val_count_median_v3 = bitmap_TileOffsets_median_cpu_v3[num_mtilesv3]; // 最后一个 tile 的偏移即为压缩后的非零值总数
-    // 将 max_nnz_intilev3 调整为 64 的倍数
+    // The offset of the last tile is equal to the total number of compressed non-zero values
+    int val_count_v3 = bitmap_TileOffsets_global_cpu_v3[num_gtilesv3]; 
+    int val_count_median_v3 = bitmap_TileOffsets_median_cpu_v3[num_mtilesv3];
+    // Adjust max_nnz_intilev3 to a multiple of 64
     if (max_nnz_intilev3 % 64 != 0) {
         max_nnz_intilev3 = ((max_nnz_intilev3 / 64) + 1) * 64;
     }
-
     printf("num_global_tiles: %d, bitmap v3 NNZ: %d, bitmap v3 median layer NNZ: %d,  max_nnz_intilev3: %d \n", num_gtilesv3, val_count_v3, val_count_median_v3, max_nnz_intilev3);
     half* Compressed_Val_gpu_v3 = nullptr;
     int* bitmap_TileOffsets_gpu_v3 = nullptr;
     int* bitmap_TileOffsets_median_gpu_v3 = nullptr;
     int* bitmap_TileOffsets_global_gpu_v3 = nullptr;
     uint64_t* bitmap_gpu_v3 = nullptr;
-
     cudaMalloc(&bitmap_TileOffsets_gpu_v3, sizeof(int) * (num_ltilesv3 + 1)); // for (16*64 tile specific)
     cudaMalloc(&bitmap_gpu_v3, sizeof(uint64_t) * (num_ltilesv3));
     cudaMalloc(&bitmap_TileOffsets_median_gpu_v3, sizeof(int) * (num_mtilesv3));
@@ -365,93 +430,6 @@ auto Split_K = SPLIT_K;
     /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-
-
-    // Flash-llm
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    uint32_t* NZWeights_CPU   = NULL;
-    int*      TileOffsets_CPU = NULL;
-    // int Split_K = SPLIT_K;
-    half* D_SpMM2 = NULL;
-    cudaMalloc(reinterpret_cast<void**>(&D_SpMM2), sizeof(half) * M_GLOBAL * N_GLOBAL);
-    if (D_SpMM2 == NULL) {
-        printf("Error in spmm_test.cu: line %d cudaMalloc falied\n", __LINE__);
-        exit(-1);
-    }
-    cudaMemset(D_SpMM2, 0, sizeof(half) * M_GLOBAL * N_GLOBAL);
-    auto NumOffsets = InitSparseMatrixA_API_NoReorder(A_h, M_GLOBAL, N_GLOBAL, K_GLOBAL, &NZWeights_CPU, &TileOffsets_CPU);
-    auto NNZ        = TileOffsets_CPU[NumOffsets - 1] * 4;  // VectorSize = 4
-    printf("NumOffsets: %d, NNZ: %d\n", NumOffsets, NNZ);
-    //
-    uint32_t* NZWeights_GPU   = NULL;
-    int*  TileOffsets_GPU = NULL;
-    cudaMalloc(&TileOffsets_GPU, sizeof(int) * NumOffsets);
-    if (NNZ == 0)
-        NNZ = 1;  // For 100% sparsity, NNZ = 0, malloc will return NULL
-    cudaMalloc(&NZWeights_GPU, sizeof(uint32_t) * NNZ);
-    if (TileOffsets_GPU == NULL || NZWeights_GPU == NULL) {
-        printf("Error in malloc memory from device memory!\n");
-        exit(-1);
-    }
-    cudaMemcpy(NZWeights_GPU, NZWeights_CPU, sizeof(uint32_t) * NNZ, cudaMemcpyHostToDevice);
-    cudaMemcpy(TileOffsets_GPU, TileOffsets_CPU, sizeof(int) * NumOffsets, cudaMemcpyHostToDevice);
-    free(TileOffsets_CPU);
-    free(NZWeights_CPU);
-    // printf("Done! Compressed A matrix for GPU kernel: MM_Sparse_TC.\n");
-    //
-    printf("Launching Flash-LLM without Ahead of Time Sparse Data Reordering...\n");
-    Split_K = SPLIT_K;
-    half* Reduction_Workspace = NULL;
-    cudaMalloc(reinterpret_cast<void**>(&Reduction_Workspace), sizeof(half) * M_GLOBAL * N_GLOBAL * Split_K);
-    if (Reduction_Workspace == NULL) {
-        printf("Error in cudaMalloc\n");
-        exit(-1);
-    }
-    //
-    for (int i = 0; i < WARM_UP_ITERATION; i++)
-        SpMM_SplitK_API(0,
-                        A,
-                        reinterpret_cast<uint4*>(NZWeights_GPU),
-                        TileOffsets_GPU,
-                        B,
-                        D_SpMM2,
-                        M_GLOBAL,
-                        N_GLOBAL,
-                        K_GLOBAL,
-                        Reduction_Workspace,
-                        Split_K);
-    cudaEventRecord(start);
-    for (int i = 0; i < BENCHMARK_ITERATION; i++)
-        SpMM_SplitK_API(0,
-                        A,
-                        reinterpret_cast<uint4*>(NZWeights_GPU),
-                        TileOffsets_GPU,
-                        B,
-                        D_SpMM2,
-                        M_GLOBAL,
-                        N_GLOBAL,
-                        K_GLOBAL,
-                        Reduction_Workspace,
-                        Split_K);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    checkLastCudaError(__LINE__);
-    //
-    float milliseconds_SpMM2 = 0.0f;
-    cudaEventElapsedTime(&milliseconds_SpMM2, start, stop);
-    milliseconds_SpMM2 = milliseconds_SpMM2 / BENCHMARK_ITERATION;
-    float tflops_SpMM2 =
-        static_cast<double>((static_cast<double>(M_GLOBAL) * N_GLOBAL * K_GLOBAL * 2) / (milliseconds_SpMM2 / 1000.))
-        / 1e12;
-    half* D_SpMM_h2 = NULL;  // col major
-    D_SpMM_h2       = (half*)malloc(sizeof(half) * M_GLOBAL * N_GLOBAL);
-    cudaMemcpy(D_SpMM_h2, D_SpMM2, sizeof(half) * M_GLOBAL * N_GLOBAL, cudaMemcpyDeviceToHost);  // Col Major
-    cudaFree(D_SpMM2);
-    cudaFree(NZWeights_GPU);
-    cudaFree(TileOffsets_GPU);
-    cudaFree(Reduction_Workspace);
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-
     double totalError_SpMM2 = 0.0;
     double totalError_SpMM_bitmapv3 = 0.0;
 
@@ -461,7 +439,7 @@ auto Split_K = SPLIT_K;
     free(D_SpMM_h2);
     free(D_SpMM_hbitmapv3);
     PrintPerformance("FlashLLM_v1", milliseconds_SpMM2, tflops_SpMM2, totalError_SpMM2);
-    PrintPerformance("FlashLLM_bitmapv3", milliseconds_SpMM_bitmapv3, tflops_SpMM_bitmapv3, totalError_SpMM_bitmapv3);
+    PrintPerformance("SpInfer", milliseconds_SpMM_bitmapv3, tflops_SpMM_bitmapv3, totalError_SpMM_bitmapv3);
     PrintPerformance("CuBlas_TC", milliseconds_cublas_tc, tflops_cublas_tc, 0.0);
 
     free(D_cublas_h);
