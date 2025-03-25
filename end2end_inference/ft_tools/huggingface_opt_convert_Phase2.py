@@ -1,3 +1,4 @@
+# Copyright 2025 The SpInfer Authors. All rights reserved.
 # Copyright 2023 The FLash-LLM Authors. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +26,7 @@ FAKE_SPARSITY = True
 REMOVE_ORGINAL_DENSE_WEIGHTS = False
 ###################################################################
 # python huggingface_opt_convert_Phase2.py \
-#       -m /data2/fanruibo/models/opt-13b/ft-model-60 \
+#       -m /data/opt-13b/ft-model-60 \
 #       -l $SpInfer_HOME/build/libSpMM_API.so \
 #       -i_g 1 \
 #       -p 64

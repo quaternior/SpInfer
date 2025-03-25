@@ -16,8 +16,6 @@ cd ${SpInfer_HOME}/third_party/FasterTransformer/build
 # Define the batch size and output length ranges
 BATCH_SIZES=(8 16 32 64)
 OUTPUT_LENS=(64 128 256 512 1024)
-# BATCH_SIZES=(16)
-# OUTPUT_LENS=(128)
 
 # Loop through all combinations
 for batch_size in "${BATCH_SIZES[@]}"; do
@@ -49,8 +47,6 @@ cd ${SpInfer_HOME}/third_party/FasterTransformer/build
 # Define the batch size and output length ranges
 BATCH_SIZES=(8 16 32 64)
 OUTPUT_LENS=(64 128 256 512 1024)
-# BATCH_SIZES=(16)
-# OUTPUT_LENS=(128)
 
 # Loop through all combinations
 for batch_size in "${BATCH_SIZES[@]}"; do

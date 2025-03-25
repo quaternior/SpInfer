@@ -10,19 +10,13 @@ from datetime import datetime
 from transformers import OPTForCausalLM, AutoModelForCausalLM
 import importlib.metadata
 
-# 打印包的版本信息
+# check the version of the packages
 print(f"argparse version: {argparse.__version__}")
-# print(f"configparser version: {configparser.__version__}")
-# print(f"multiprocessing version: {multiprocessing.__version__}")
 print(f"numpy version: {np.__version__}")
-# print(f"pathlib version: {Path.__version__}")  # Path 没有 __version__ 属性
 print(f"torch version: {torch.__version__}")
-# print(f"os version: {os.__version__}")  # os 没有 __version__ 属性
-# print(f"sys version: {sys.__version__}")  # sys 没有 __version__ 属性
-# print(f"datetime version: {datetime.__version__}")  # datetime 没有 __version__ 属性
 print(f"transformers version: {importlib.metadata.version('transformers')}")
 
-# 检查 OPTForCausalLM 和 AutoModelForCausalLM 是否存在
+# check if OPTForCausalLM and AutoModelForCausalLM exist
 try:
         from transformers import OPTForCausalLM, AutoModelForCausalLM
         print("OPTForCausalLM and AutoModelForCausalLM are available.")

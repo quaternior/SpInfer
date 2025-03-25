@@ -1,3 +1,15 @@
+# Copyright 2025 The SpInfer Authors. All rights reserved.
+# Copyright 2023 The FLash-LLM Authors. All rights reserved.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.lines as mlines
@@ -6,18 +18,18 @@ import re
 
 def parse_our_flash_ft_log(file_path):
     """
-    解析 our/flash-llm/ft 日志文件，提取推理时间（毫秒）。
+    parse the log file of our/flash-llm/ft, extract the inference time (ms).
     
-    参数:
-    file_path (str): 日志文件路径
+    Args:
+    file_path (str): the path of the log file
     
-    返回:
-    float: 推理时间（毫秒），如果未找到则返回 None
+    Returns:
+    float: inference time (ms), return None if not found
     """
     try:
         with open(file_path, 'r') as file:
             content = file.read()
-            # 匹配 FT-CPP-decoding-beamsearch-time 后的时间值
+            # match the time value after FT-CPP-decoding-beamsearch-time
             match = re.search(r'FT-CPP-decoding-beamsearch-time\s*([\d.]+)\s*ms', content)
             if match:
                 return float(match.group(1))
@@ -30,21 +42,21 @@ def parse_our_flash_ft_log(file_path):
 
 def parse_ds_log(file_path):
     """
-    解析 ds 日志文件，提取推理时间（毫秒）。
+    parse the log file of ds, extract the inference time (ms).
     
-    参数:
-    file_path (str): 日志文件路径
+    Args:
+    file_path (str): the path of the log file
     
-    返回:
-    float: 推理时间（毫秒），如果未找到则返回 None
+    Returns:
+    float: inference time (ms), return None if not found
     """
     try:
         with open(file_path, 'r') as file:
             content = file.read()
-            # 匹配 generation time is 后的时间值
+            # match the time value after generation time is
             match = re.search(r'generation time is\s*([\d.]+)\s*sec', content)
             if match:
-                # 将秒转换为毫秒
+                # convert seconds to milliseconds
                 return float(match.group(1)) * 1000
             else:
                 print(f"Warning: Could not find 'generation time is' in {file_path}")
@@ -56,16 +68,16 @@ import os
 
 def load_data(base_path, output_lengths, batch_sizes, log_parser):
     """
-    从日志文件中加载数据。
+    load data from the log file.
     
-    参数:
-    base_path (str): 日志文件的基础路径
-    output_lengths (list): 输出长度列表
-    batch_sizes (list): 批量大小列表
-    log_parser (function): 日志解析函数
+    Args:
+    base_path (str): the base path of the log file
+    output_lengths (list): the list of output lengths
+    batch_sizes (list): the list of batch sizes
+    log_parser (function): the log parser function
     
-    返回:
-    list: 与数据格式相同的数据
+    Returns:
+    list: the same data format as the data
     """
     data = []
     for i, output_length in enumerate(output_lengths):
@@ -77,18 +89,16 @@ def load_data(base_path, output_lengths, batch_sizes, log_parser):
         data.append(row)
     return data
 
-# 定义路径
+# define the paths
 SpInfer_HOME = os.getenv('SpInfer_HOME')
 FlashLLM_HOME = os.getenv('FlashLLM_HOME')
 FT_HOME = os.getenv('FT_HOME')
 
-# 数据
+# data
 batch_sizes = [8, 16, 32]
 output_lengths = [64, 128, 256, 512, 1024]
-# batch_sizes = [16]
-# output_lengths = [128]
 
-# 加载 our/flash-llm/ft 数据
+# load the data of our/flash-llm/ft
 our_1gpu_13B = load_data(f"{SpInfer_HOME}/third_party/FasterTransformer/Result_13B/1-gpu", output_lengths, batch_sizes, parse_our_flash_ft_log)
 our_2gpus_13B = load_data(f"{SpInfer_HOME}/third_party/FasterTransformer/Result_13B/2-gpu", output_lengths, batch_sizes, parse_our_flash_ft_log)
 our_2gpus = load_data(f"{SpInfer_HOME}/third_party/FasterTransformer/Result_30B/2-gpu", output_lengths, batch_sizes, parse_our_flash_ft_log)
@@ -102,17 +112,17 @@ flash_llm_4gpus = load_data(f"{FlashLLM_HOME}/third_party/FasterTransformer/Resu
 ft_2gpus_13B = load_data(f"{FT_HOME}/FasterTransformer/Result_13B/2-gpu", output_lengths, batch_sizes, parse_our_flash_ft_log)
 ft_4gpus = load_data(f"{FT_HOME}/FasterTransformer/Result_13B/2-gpu", output_lengths, batch_sizes, parse_our_flash_ft_log)
 
-# 加载 ds 数据
+# load the data of ds
 ds_2gpus_13B = load_data(f"{SpInfer_HOME}/end2end_inference/ds_scripts/ds_result/2-gpu", output_lengths, batch_sizes, parse_ds_log)
 ds_4gpus = load_data(f"{SpInfer_HOME}/end2end_inference/ds_scripts/ds_result/4-gpu", output_lengths, batch_sizes, parse_ds_log)
 
-# Modified compute_throughput function
+# modified compute_throughput function
 def compute_throughput(batch_size, output_length, latency, num_gpus):
     if latency is None:
         return None
     return (batch_size * output_length) / (latency * num_gpus) * 1000
 
-# Modified compute_y_range function
+# modified compute_y_range function
 def compute_y_range(*datasets, num_gpus):
     y_values = []
     for data in datasets:
