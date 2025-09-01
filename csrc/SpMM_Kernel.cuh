@@ -35,7 +35,7 @@ __device__ __forceinline__ void SpMM_LoadFragAwithBitmapFromShem(uint32_t __rest
     int lane_id = threadIdx.x % 32;
     int start_pos = 0;
     if (Pred == true) {
-        #pragma unroll
+        #pragma unroll(1)
         for (int i = 0; i < 4; i++) {
             #pragma unroll
             for (int j = 0; j < 4; j++) {
