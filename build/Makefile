@@ -20,7 +20,7 @@ NVCCFLAGS   := -m$(shell getconf LONG_BIT)
 CCFLAGS     := -fPIC
 LDFLAGS     :=
 
-ALL_CCFLAGS :=
+ALL_CCFLAGS := -lineinfo
 ALL_CCFLAGS += $(NVCCFLAGS)
 ALL_CCFLAGS += $(addprefix -Xcompiler ,$(CCFLAGS))
 
@@ -35,7 +35,7 @@ LIBRARIES := -lcublas -lcusparse
 ################################################################################
 
 # Gencode arguments
-SMS ?= 89
+SMS ?= 86 89
 # Generate SASS code for each SM architecture listed in $(SMS)
 $(foreach sm,$(SMS),$(eval GENCODE_FLAGS += -gencode arch=compute_$(sm),code=sm_$(sm)))
 
