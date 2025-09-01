@@ -46,6 +46,11 @@ endif
 ifneq ($(USE_CUSPARSELT),)
 LIBRARIES += -lcusparseLt
 endif
+
+ifeq ($(PROFILE),1)
+    CPPFLAGS += -DWARM_UP_ITERATION=0 -DBENCHMARK_ITERATION=1
+    $(info [INFO] PROFILE mode enabled)
+endif
 ################################################################################
 
 # Gencode arguments

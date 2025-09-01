@@ -25,8 +25,14 @@
 #include <cusparse_v2.h>
 
 // Performance Benchmark
-#define WARM_UP_ITERATION 0
-#define BENCHMARK_ITERATION 1000
+#ifndef WARM_UP_ITERATION
+#define WARM_UP_ITERATION 10
+#endif
+
+#ifndef BENCHMARK_ITERATION
+#define BENCHMARK_ITERATION 100
+#endif
+
 #ifdef USE_CUSPARSE
 #define CUSPARSE_ITERATION 10
 #endif
